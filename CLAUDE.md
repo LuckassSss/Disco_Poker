@@ -9,9 +9,12 @@
 - `Assets/Scenes/` — сцены.
 
 ## Правила
-- Один сборочный `asmdef` в `Scripts/` не нужен, пока проект один. Не создавать.
+- Два `asmdef`: `Scripts/PokerClient.asmdef` (весь код) и `Tests/EditMode/PokerClient.Tests.asmdef`.
+  Второй нужен Test Runner'у, первый — чтобы тесты видели код. Больше не плодить.
 - uGUI + TMP, не UI Toolkit.
 - Ссылки на ассеты — через `[SerializeField]`, не `Resources.Load`.
+- Тестовый UI собирается из кода в `TableView.cs` (спрайтов карт пока нет); префабы — когда придёт арт.
+- JSON — Newtonsoft (`JObject`), он уже в проекте транзитивно. `JsonUtility` не подходит: нет словарей и null.
 - Спрайты карт: имя `{rank}{suit}` (`As`, `Td`, `2c`, `Kh`), рубашка `back`.
 - Не трогать `Library/`, `Temp/`, `*.csproj`, `*.slnx` — генерируются Unity.
 - Unity-специфика: `.meta` файлы коммитить, не удалять руками.
