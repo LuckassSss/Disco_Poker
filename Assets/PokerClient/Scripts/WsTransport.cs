@@ -28,7 +28,17 @@ namespace PokerClient
         {
             _ws = new ClientWebSocket();
             _cts = new CancellationTokenSource();
-            await _ws.ConnectAsync(new Uri(url), _cts.Token);
+            // без таймаута ConnectAsync при пропавшей сети висит минутами, и реконнект никогда не повторяется
+            using var connectTimeout = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
+            connectTimeout.CancelAfter(TimeSpan.FromSeconds(10));
+            try
+            {
+                await _ws.ConnectAsync(new Uri(url), connectTimeout.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                throw new TimeoutException("нет ответа от сервера за 10 с");
+            }
             _ = Task.Run(ReceiveLoop);
         }
 
@@ -66,8 +76,11 @@ namespace PokerClient
 
         public bool TryDequeue(out string text) => _inbox.TryDequeue(out text);
 
+        public bool IsOpen => _ws != null && _ws.State == WebSocketState.Open;
+
         public async Task SendAsync(string text)
         {
+            if (!IsOpen) return; // сокет ещё открывается или уже закрыт
             var bytes = Encoding.UTF8.GetBytes(text);
             await _sendLock.WaitAsync();
             try

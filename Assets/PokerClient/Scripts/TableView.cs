@@ -19,7 +19,7 @@ namespace PokerClient
         // экранные позиции мест: 0 — своё (снизу), дальше по часовой стрелке
         static readonly Vector2[] SeatPos =
         {
-            new(0, -290), new(-660, -130), new(-660, 210), new(0, 350), new(660, 210), new(660, -130),
+            new(0, -140), new(-660, -130), new(-660, 210), new(0, 350), new(660, 210), new(660, -130),
         };
         static readonly Color Felt = new(0.07f, 0.33f, 0.19f);
         static readonly Color Panel = new(0, 0, 0, 0.55f);
@@ -41,6 +41,7 @@ namespace PokerClient
         RectTransform _actions;
         GameObject _sliderRow;
         Slider _slider;
+        string _sliderPrefix = "";
 
         int _drawnVersion = -1;
         ClientState _drawnState = (ClientState)(-1);
@@ -114,7 +115,7 @@ namespace PokerClient
                 if (s.Bet > 0) sb.Append("   <color=#FFD54F>ставка ").Append(s.Bet).Append("</color>");
                 sb.Append('\n');
                 if (s.ShownCards != null) sb.Append(Cards(s.ShownCards));
-                else if (s.HasCards && s.State != "folded") sb.Append("<alpha=#A0>▮ ▮");
+                else if (s.HasCards && s.State != "folded") sb.Append("<alpha=#A0>□ □");
                 sb.Append('\n');
                 if (!s.Connected) sb.Append("<color=#FF8A80>оффлайн</color>");
                 else if (s.SittingOut) sb.Append("<alpha=#A0>сит-аут");
@@ -151,10 +152,11 @@ namespace PokerClient
                         label = o.Action == "bet" ? "Бет" : "Рейз";
                         onClick = () => _s.SendAction(option.Action, (long)_slider.value);
                         _sliderRow.SetActive(true);
+                        _sliderPrefix = o.Action == "bet" ? "Бет" : "Рейз до";
                         _slider.minValue = o.Min;
                         _slider.maxValue = o.Max;
                         _slider.SetValueWithoutNotify(o.Min);
-                        _sliderLabel.text = $"{(option.Action == "bet" ? "Бет" : "Рейз до")}: {o.Min}";
+                        _sliderLabel.text = $"{_sliderPrefix}: {o.Min}";
                         break;
                     default: continue;
                 }
@@ -175,7 +177,7 @@ namespace PokerClient
             var left = m.DeadlineTs - _s.ServerNow;
             _timer.text = $"{Mathf.Max(0f, (float)left):0}";
             var pos = SeatPos[TableModel.ScreenPos(m.ToAct, m.MySeat)];
-            _timer.rectTransform.anchoredPosition = pos + new Vector2(0, 95);
+            _timer.rectTransform.anchoredPosition = pos + new Vector2(120, 55);
         }
 
         string Cards(List<string> cards)
@@ -212,7 +214,7 @@ namespace PokerClient
             var root = canvasGo.transform;
 
             MakePanel(Stretch(root, "Background"), Felt);
-            _message = AddText(Box(root, "Message", new Vector2(0, -20), new Vector2(1600, 60), new Vector2(0.5f, 1f)), 30, TextAlignmentOptions.Center, new Color(1f, 0.85f, 0.4f));
+            _message = AddText(Box(root, "Message", new Vector2(0, -4), new Vector2(1000, 40), new Vector2(0.5f, 1f)), 26, TextAlignmentOptions.Center, new Color(1f, 0.85f, 0.4f));
 
             BuildLobby(root);
             BuildTable(root);
@@ -241,10 +243,10 @@ namespace PokerClient
             _header = AddText(Box(t, "Header", new Vector2(30, -30), new Vector2(1400, 50), new Vector2(0f, 1f)), 28, TextAlignmentOptions.Left);
             MakeButton(t, "Встать", new Vector2(-40, -70), new Vector2(240, 80), _s.LeaveTable, new Color(0.6f, 0.25f, 0.25f), new Vector2(1f, 1f));
 
-            MakePanel(Box(t, "Center", new Vector2(0, 60), new Vector2(760, 250)), new Color(0, 0, 0, 0.35f));
-            _board = AddText(Box(t, "Board", new Vector2(0, 90), new Vector2(760, 120)), 72, TextAlignmentOptions.Center);
-            _pot = AddText(Box(t, "Pot", new Vector2(0, 10), new Vector2(760, 60)), 40, TextAlignmentOptions.Center);
-            _status = AddText(Box(t, "Status", new Vector2(0, -40), new Vector2(760, 50)), 28, TextAlignmentOptions.Center, new Color(1f, 1f, 1f, 0.8f));
+            MakePanel(Box(t, "Center", new Vector2(0, 95), new Vector2(760, 250)), new Color(0, 0, 0, 0.35f));
+            _board = AddText(Box(t, "Board", new Vector2(0, 125), new Vector2(760, 120)), 72, TextAlignmentOptions.Center);
+            _pot = AddText(Box(t, "Pot", new Vector2(0, 45), new Vector2(760, 60)), 40, TextAlignmentOptions.Center);
+            _status = AddText(Box(t, "Status", new Vector2(0, -5), new Vector2(760, 50)), 28, TextAlignmentOptions.Center, new Color(1f, 1f, 1f, 0.8f));
 
             for (var i = 0; i < TableModel.MaxSeats; i++)
             {
@@ -254,12 +256,12 @@ namespace PokerClient
             }
             _timer = AddText(Box(t, "Timer", Vector2.zero, new Vector2(120, 50)), 40, TextAlignmentOptions.Center, new Color(1f, 0.85f, 0.4f));
 
-            _myCards = AddText(Box(t, "MyCards", new Vector2(0, 110), new Vector2(600, 110), new Vector2(0.5f, 0f)), 80, TextAlignmentOptions.Center);
+            _myCards = AddText(Box(t, "MyCards", new Vector2(0, 260), new Vector2(600, 110), new Vector2(0.5f, 0f)), 80, TextAlignmentOptions.Center);
 
-            _sliderRow = Box(t, "SliderRow", new Vector2(0, 230), new Vector2(1000, 70), new Vector2(0.5f, 0f)).gameObject;
+            _sliderRow = Box(t, "SliderRow", new Vector2(0, 170), new Vector2(1000, 70), new Vector2(0.5f, 0f)).gameObject;
             _sliderLabel = AddText(Box(_sliderRow.transform, "Label", new Vector2(-380, 0), new Vector2(300, 60)), 32, TextAlignmentOptions.Right);
             _slider = MakeSlider(_sliderRow.transform, new Vector2(150, 0), new Vector2(600, 40));
-            _slider.onValueChanged.AddListener(v => _sliderLabel.text = $"{(_sliderLabel.text.StartsWith("Бет") ? "Бет" : "Рейз до")}: {(long)v}");
+            _slider.onValueChanged.AddListener(v => _sliderLabel.text = $"{_sliderPrefix}: {(long)v}");
 
             _actions = Box(t, "Actions", new Vector2(0, 60), new Vector2(1400, 100), new Vector2(0.5f, 0f));
         }

@@ -233,6 +233,7 @@ namespace PokerClient
                     }
                     Pot = d.Value<long?>("pot") ?? Pot;
                     ToAct = -1;
+                    Status = "";
                     break;
 
                 case "action_timeout":

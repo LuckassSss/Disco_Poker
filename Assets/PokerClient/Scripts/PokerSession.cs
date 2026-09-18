@@ -224,6 +224,7 @@ namespace PokerClient
             var ws = _ws;
             if (ws == null || ws.Closed) return;
             var envelope = new JObject { ["t"] = t, ["d"] = d ?? new JObject() };
+            if (t != "ping") Debug.Log($"→ {envelope.ToString(Formatting.None)}");
             _ = ws.SendAsync(envelope.ToString(Formatting.None)).ContinueWith(
                 task => Debug.LogWarning($"Не отправил {t}: {task.Exception?.GetBaseException().Message}"),
                 TaskContinuationOptions.OnlyOnFaulted);
@@ -245,6 +246,7 @@ namespace PokerClient
 
             var t = envelope.Value<string>("t");
             var d = envelope["d"] as JObject ?? new JObject();
+            if (t != "pong") Debug.Log($"← {t} {(raw.Length > 300 ? raw.Substring(0, 300) + "…" : raw)}");
 
             switch (t)
             {
@@ -287,6 +289,7 @@ namespace PokerClient
 
                 case "left_table":
                     Model.Clear();
+                    Model.Balance += d.Value<long?>("returned") ?? 0;
                     State = ClientState.Authorized;
                     Message = $"Вы встали из-за стола, на баланс вернулось {d.Value<long?>("returned") ?? 0}";
                     return;
