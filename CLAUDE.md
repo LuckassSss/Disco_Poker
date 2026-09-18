@@ -81,7 +81,16 @@ minSdk 26, iOS 15. Bundle id `com.discopoker.client` — заглушка, см�
 
 - Плагин `unity@claude-plugins-official` (скиллы `/unity:ui-ugui`, `/unity:unity-cli`,
   `/unity:sprite-editor`, `/unity:manage-sprite-atlas` и др.).
-- Unity CLI: `~/.unity/bin/unity`. Сборка: `unity build --target Android -o Builds/android`
-  — только при закрытом редакторе (проект блокируется).
+- Unity CLI: `~/.unity/bin/unity` (`unity test`/`unity build` в beta.8 зависают на старте —
+  батч-режим запускать напрямую, только при закрытом редакторе):
+  ```
+  U=/Applications/Unity/Hub/Editor/6000.5.5f1/Unity.app/Contents/MacOS/Unity
+  $U -batchmode -nographics -projectPath "$PWD" -runTests -testPlatform EditMode -testResults t.xml -logFile t.log
+  $U -batchmode -nographics -projectPath "$PWD" -buildTarget Android -executeMethod PokerClient.Editor.BuildTools.BuildAndroid -quit -logFile a.log
+  $U -batchmode -nographics -projectPath "$PWD" -buildTarget iOS -executeMethod PokerClient.Editor.BuildTools.BuildIos -quit -logFile i.log
+  ```
+  Выход: `Builds/android/DiscoPoker.apk`, `Builds/ios/` (Xcode-проект, дальше Xcode → устройство).
+- Сервер для проверки: `game/scripts/run_local.sh`, боты `python3 game/scripts/bot_client.py --bots 5 --hands 50`.
+  Телефон подключается по LAN-адресу мака (`ipconfig getifaddr en0`), порт 8000, поле «Сервер» в лобби.
 - Unity MCP: relay зарегистрирован в Claude Code как `unity-mcp` (user scope).
   Первое подключение подтверждать в Editor → Project Settings → AI → Unity MCP Server.
