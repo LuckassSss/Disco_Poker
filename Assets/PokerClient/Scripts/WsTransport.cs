@@ -28,17 +28,15 @@ namespace PokerClient
         {
             _ws = new ClientWebSocket();
             _cts = new CancellationTokenSource();
-            // без таймаута ConnectAsync при пропавшей сети висит минутами, и реконнект никогда не повторяется
-            using var connectTimeout = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
-            connectTimeout.CancelAfter(TimeSpan.FromSeconds(10));
-            try
+            // Mono игнорирует токен отмены внутри ConnectAsync: при пропавшей сети он висит минутами,
+            // и реконнект никогда не повторяется — поэтому ждём с таймаутом и рвём сокет сами
+            var connect = _ws.ConnectAsync(new Uri(url), _cts.Token);
+            if (await Task.WhenAny(connect, Task.Delay(TimeSpan.FromSeconds(10))) != connect)
             {
-                await _ws.ConnectAsync(new Uri(url), connectTimeout.Token);
-            }
-            catch (OperationCanceledException)
-            {
+                _ws.Abort();
                 throw new TimeoutException("нет ответа от сервера за 10 с");
             }
+            await connect; // пробросит ошибку подключения, если она была
             _ = Task.Run(ReceiveLoop);
         }
 

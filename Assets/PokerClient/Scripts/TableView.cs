@@ -36,6 +36,7 @@ namespace PokerClient
         TMP_Text _lobbyButtonText, _lobbyMessage;
 
         readonly TMP_Text[] _seatText = new TMP_Text[TableModel.MaxSeats];
+        readonly RectTransform[] _seatRt = new RectTransform[TableModel.MaxSeats];
         readonly Image[] _seatBg = new Image[TableModel.MaxSeats];
         TMP_Text _header, _board, _pot, _status, _myCards, _timer, _message, _sliderLabel;
         RectTransform _actions;
@@ -115,7 +116,7 @@ namespace PokerClient
                 if (s.Bet > 0) sb.Append("   <color=#FFD54F>ставка ").Append(s.Bet).Append("</color>");
                 sb.Append('\n');
                 if (s.ShownCards != null) sb.Append(Cards(s.ShownCards));
-                else if (s.HasCards && s.State != "folded") sb.Append("<alpha=#A0>□ □");
+                else if (s.HasCards && s.State != "folded" && i != m.MySeat) sb.Append("<alpha=#A0>□ □");
                 sb.Append('\n');
                 if (!s.Connected) sb.Append("<color=#FF8A80>оффлайн</color>");
                 else if (s.SittingOut) sb.Append("<alpha=#A0>сит-аут");
@@ -176,8 +177,8 @@ namespace PokerClient
             }
             var left = m.DeadlineTs - _s.ServerNow;
             _timer.text = $"{Mathf.Max(0f, (float)left):0}";
-            var pos = SeatPos[TableModel.ScreenPos(m.ToAct, m.MySeat)];
-            _timer.rectTransform.anchoredPosition = pos + new Vector2(120, 55);
+            var seat = _seatRt[TableModel.ScreenPos(m.ToAct, m.MySeat)];
+            if (_timer.transform.parent != seat) _timer.transform.SetParent(seat, false);
         }
 
         string Cards(List<string> cards)
@@ -250,11 +251,15 @@ namespace PokerClient
 
             for (var i = 0; i < TableModel.MaxSeats; i++)
             {
-                var seat = Box(t, $"Seat{i}", SeatPos[i], new Vector2(340, 170));
+                // своё место (0) привязано к нижнему краю, чтобы на любом экране не наезжать на карты и центр
+                var seat = i == 0
+                    ? Box(t, "Seat0", new Vector2(0, 425), new Vector2(340, 170), new Vector2(0.5f, 0f))
+                    : Box(t, $"Seat{i}", SeatPos[i], new Vector2(340, 170));
+                _seatRt[i] = seat;
                 _seatBg[i] = MakePanel(seat, Panel);
                 _seatText[i] = AddText(Stretch(seat, "Text"), 28, TextAlignmentOptions.Center);
             }
-            _timer = AddText(Box(t, "Timer", Vector2.zero, new Vector2(120, 50)), 40, TextAlignmentOptions.Center, new Color(1f, 0.85f, 0.4f));
+            _timer = AddText(Box(t, "Timer", new Vector2(-12, -6), new Vector2(80, 44), new Vector2(1f, 1f)), 34, TextAlignmentOptions.Right, new Color(1f, 0.85f, 0.4f));
 
             _myCards = AddText(Box(t, "MyCards", new Vector2(0, 260), new Vector2(600, 110), new Vector2(0.5f, 0f)), 80, TextAlignmentOptions.Center);
 
