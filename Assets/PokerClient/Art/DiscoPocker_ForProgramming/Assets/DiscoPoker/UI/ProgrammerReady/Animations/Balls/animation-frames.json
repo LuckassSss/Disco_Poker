@@ -1,0 +1,25 @@
+{
+  "id": "disco-ball-rotation",
+  "usage": "UnityEngine.UI.Image sprite sequence",
+  "frameCount": 10,
+  "width": 1254,
+  "height": 1254,
+  "hasTransparency": true,
+  "playback": {
+    "frameRate": null,
+    "loop": null,
+    "note": "Set by the owning UI behaviour; not defined by the supplied artwork."
+  },
+  "frames": [
+    { "index": 1, "file": "Frames/disco-ball-rotation-01.png", "sha256": "68B6AF1D1F0D3BA59944D5DEAF719CFCEF5ACB56902FEB63E277F168D375AAF9" },
+    { "index": 2, "file": "Frames/disco-ball-rotation-02.png", "sha256": "AD0E4EBD63DB67F034A2538776F6E2CF69F4D99FFCAA1396CBC87CB58AEF23BC" },
+    { "index": 3, "file": "Frames/disco-ball-rotation-03.png", "sha256": "C5F846655FFA2705B3241F3A36A3D519CCB4BF40310686D48EF0A6ABF09D7E90" },
+    { "index": 4, "file": "Frames/disco-ball-rotation-04.png", "sha256": "7D6FE2B569F841BAFECA8E5E1AB0CB0B5AF245B5469893125FECAC225C15CCB0" },
+    { "index": 5, "file": "Frames/disco-ball-rotation-05.png", "sha256": "2AEE14B5C81070BC9A4D1A939563B2E8DFB0D4B27199F29A4E6C0116C2A4B5A0" },
+    { "index": 6, "file": "Frames/disco-ball-rotation-06.png", "sha256": "80A5650CAABACB48CC95AF765B448B54084206FC8B50A3166B5DEBABF4BCE658" },
+    { "index": 7, "file": "Frames/disco-ball-rotation-07.png", "sha256": "E01A76FEB8D6B6D1CD98D5726A1D6154A4331EE6DFCAFE2B1E34215348214D3F" },
+    { "index": 8, "file": "Frames/disco-ball-rotation-08.png", "sha256": "2F03BD8FEB210552D05F33B0FA0DB2DF9B996E7351BB08C6F20E0C51717E9301" },
+    { "index": 9, "file": "Frames/disco-ball-rotation-09.png", "sha256": "75AB37DE176C733055D48A92F0EAE6D8BE6D55480647A008B562A5BF65C3D027" },
+    { "index": 10, "file": "Frames/disco-ball-rotation-10.png", "sha256": "20D43F92B41F45771C4F2EBCE0A4E6180816C5476DC480149765CD4ECCA1CFCC" }
+  ]
+}
