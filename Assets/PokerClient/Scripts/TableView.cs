@@ -244,16 +244,17 @@ namespace PokerClient
             _header = AddText(Box(t, "Header", new Vector2(30, -30), new Vector2(1400, 50), new Vector2(0f, 1f)), 28, TextAlignmentOptions.Left);
             MakeButton(t, "Встать", new Vector2(-40, -70), new Vector2(240, 80), _s.LeaveTable, new Color(0.6f, 0.25f, 0.25f), new Vector2(1f, 1f));
 
-            MakePanel(Box(t, "Center", new Vector2(0, 95), new Vector2(760, 250)), new Color(0, 0, 0, 0.35f));
-            _board = AddText(Box(t, "Board", new Vector2(0, 125), new Vector2(760, 120)), 72, TextAlignmentOptions.Center);
-            _pot = AddText(Box(t, "Pot", new Vector2(0, 45), new Vector2(760, 60)), 40, TextAlignmentOptions.Center);
-            _status = AddText(Box(t, "Status", new Vector2(0, -5), new Vector2(760, 50)), 28, TextAlignmentOptions.Center, new Color(1f, 1f, 1f, 0.8f));
+            // по вертикали холст может ужаться до ~960 единиц (масштаб по ширине), низ считаем от нижнего края
+            MakePanel(Box(t, "Center", new Vector2(0, 120), new Vector2(760, 230)), new Color(0, 0, 0, 0.35f));
+            _board = AddText(Box(t, "Board", new Vector2(0, 150), new Vector2(760, 120)), 72, TextAlignmentOptions.Center);
+            _pot = AddText(Box(t, "Pot", new Vector2(0, 70), new Vector2(760, 60)), 40, TextAlignmentOptions.Center);
+            _status = AddText(Box(t, "Status", new Vector2(0, 25), new Vector2(760, 50)), 28, TextAlignmentOptions.Center, new Color(1f, 1f, 1f, 0.8f));
 
             for (var i = 0; i < TableModel.MaxSeats; i++)
             {
                 // своё место (0) привязано к нижнему краю, чтобы на любом экране не наезжать на карты и центр
                 var seat = i == 0
-                    ? Box(t, "Seat0", new Vector2(0, 425), new Vector2(340, 170), new Vector2(0.5f, 0f))
+                    ? Box(t, "Seat0", new Vector2(0, 305), new Vector2(340, 170), new Vector2(0.5f, 0f))
                     : Box(t, $"Seat{i}", SeatPos[i], new Vector2(340, 170));
                 _seatRt[i] = seat;
                 _seatBg[i] = MakePanel(seat, Panel);
@@ -261,9 +262,9 @@ namespace PokerClient
             }
             _timer = AddText(Box(t, "Timer", new Vector2(-12, -6), new Vector2(80, 44), new Vector2(1f, 1f)), 34, TextAlignmentOptions.Right, new Color(1f, 0.85f, 0.4f));
 
-            _myCards = AddText(Box(t, "MyCards", new Vector2(0, 260), new Vector2(600, 110), new Vector2(0.5f, 0f)), 80, TextAlignmentOptions.Center);
+            _myCards = AddText(Box(t, "MyCards", new Vector2(0, 250), new Vector2(600, 110), new Vector2(0.5f, 0f)), 80, TextAlignmentOptions.Center);
 
-            _sliderRow = Box(t, "SliderRow", new Vector2(0, 170), new Vector2(1000, 70), new Vector2(0.5f, 0f)).gameObject;
+            _sliderRow = Box(t, "SliderRow", new Vector2(0, 160), new Vector2(1000, 70), new Vector2(0.5f, 0f)).gameObject;
             _sliderLabel = AddText(Box(_sliderRow.transform, "Label", new Vector2(-380, 0), new Vector2(300, 60)), 32, TextAlignmentOptions.Right);
             _slider = MakeSlider(_sliderRow.transform, new Vector2(150, 0), new Vector2(600, 40));
             _slider.onValueChanged.AddListener(v => _sliderLabel.text = $"{_sliderPrefix}: {(long)v}");
