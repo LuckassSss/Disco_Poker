@@ -69,3 +69,16 @@ Joining → AtTable`, плюс `Reconnecting`. В `AtTable` переходим �
 Каждый шаг проверяется на живом сервере с ботами перед следующим: транспорт и
 очередь → DTO и диспетчер → модель стола и `quick_join` → отрисовка раздачи без
 ходов → свой ход → реконнект → краевые случаи (сит-аут, докупка, выход, `4001`).
+
+## Платформы и инструменты
+
+Цель — Android и iOS, ландшафт (арт 16:9). Шаблон уже мобильный: IL2CPP, ARM64,
+minSdk 26, iOS 15. Bundle id `com.discopoker.client` — заглушка, сменить перед релизом.
+На этой машине нет Xcode, iOS собирать негде; Android-модуль (SDK/NDK/JDK) стоит.
+
+- Плагин `unity@claude-plugins-official` (скиллы `/unity:ui-ugui`, `/unity:unity-cli`,
+  `/unity:sprite-editor`, `/unity:manage-sprite-atlas` и др.).
+- Unity CLI: `~/.unity/bin/unity`. Сборка: `unity build --target Android -o Builds/android`
+  — только при закрытом редакторе (проект блокируется).
+- Unity MCP: relay зарегистрирован в Claude Code как `unity-mcp` (user scope).
+  Первое подключение подтверждать в Editor → Project Settings → AI → Unity MCP Server.
