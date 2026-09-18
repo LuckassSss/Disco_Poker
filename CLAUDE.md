@@ -74,7 +74,7 @@ Joining → AtTable`, плюс `Reconnecting`. В `AtTable` переходим �
 
 Цель — Android и iOS, ландшафт (арт 16:9). Шаблон уже мобильный: IL2CPP, ARM64,
 minSdk 26, iOS 15. Bundle id `com.discopoker.client` — заглушка, сменить перед релизом.
-На этой машине нет Xcode, iOS собирать негде; Android-модуль (SDK/NDK/JDK) стоит.
+Тулчейны стоят: Android-модуль (SDK/NDK/JDK) и Xcode 27 (iOS SDK 27).
 
 - Плагин `unity@claude-plugins-official` (скиллы `/unity:ui-ugui`, `/unity:unity-cli`,
   `/unity:sprite-editor`, `/unity:manage-sprite-atlas` и др.).
