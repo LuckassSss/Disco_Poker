@@ -40,15 +40,6 @@ namespace PokerClient
         /// <summary>Серверное время сейчас, по поправке из welcome/pong. Локальные часы не используются.</summary>
         public double ServerNow => Time.realtimeSinceStartupAsDouble + _clockOffset;
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        static void Bootstrap()
-        {
-            var go = new GameObject("PokerSession");
-            DontDestroyOnLoad(go);
-            go.AddComponent<PokerSession>();
-            go.AddComponent<TableView>();
-        }
-
         void Awake()
         {
             Application.runInBackground = true;
@@ -57,6 +48,18 @@ namespace PokerClient
         }
 
         void OnDestroy() => _ws?.Dispose();
+
+        // Тестовый хук: подключиться и сесть за стол без тапов — для iOS-симулятора без Simulator.app.
+        // Запуск: SIMCTL_CHILD_POKER_AUTOJOIN=1 xcrun simctl launch <udid> com.discopoker.client (или аргумент -autojoin).
+        bool _autoJoin;
+
+        void Start()
+        {
+            _autoJoin = Environment.GetEnvironmentVariable("POKER_AUTOJOIN") == "1"
+                        || Array.IndexOf(Environment.GetCommandLineArgs(), "-autojoin") >= 0;
+            Debug.Log($"autojoin={_autoJoin} args=[{string.Join(" ", Environment.GetCommandLineArgs())}]");
+            if (_autoJoin) Connect(Host, Nickname);
+        }
 
         // ------------------------------------------------------------------ команды UI
         public async void Connect(string host, string nickname)
@@ -265,6 +268,7 @@ namespace PokerClient
                     {
                         State = ClientState.Authorized;
                         Message = "";
+                        if (_autoJoin) { _autoJoin = false; QuickJoin("low"); }
                     }
                     return;
 

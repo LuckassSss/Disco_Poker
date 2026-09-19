@@ -29,7 +29,19 @@ namespace PokerClient.Editor
         }
 
         [MenuItem("Poker/Build iOS Xcode project")]
-        public static void BuildIos() => Build(BuildTarget.iOS, Output("Builds/ios"));
+        public static void BuildIos()
+        {
+            PlayerSettings.iOS.sdkVersion = iOSSdkVersion.DeviceSDK;
+            Build(BuildTarget.iOS, Output("Builds/ios"));
+        }
+
+        /// <summary>Под симулятор: другой SDK и отдельная папка, подпись не нужна.</summary>
+        [MenuItem("Poker/Build iOS Simulator Xcode project")]
+        public static void BuildIosSimulator()
+        {
+            PlayerSettings.iOS.sdkVersion = iOSSdkVersion.SimulatorSDK;
+            Build(BuildTarget.iOS, Output("Builds/ios-sim"));
+        }
 
         static void Build(BuildTarget target, string output)
         {

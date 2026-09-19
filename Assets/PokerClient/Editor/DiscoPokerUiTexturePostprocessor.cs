@@ -10,16 +10,9 @@ namespace DiscoPoker.UI.Editor
     /// </summary>
     internal sealed class DiscoPokerUiTexturePostprocessor : AssetPostprocessor
     {
-        private const string SpritesRoot =
-            "Assets/DiscoPoker/UI/ProgrammerReady/Sprites/";
-
-        private const string BallFramesRoot =
-            "Assets/DiscoPoker/UI/ProgrammerReady/Animations/Balls/Frames/";
-
         private static readonly string[] PreparedTextureRoots =
         {
-            SpritesRoot,
-            BallFramesRoot
+            "Assets/PokerClient/Art/UI/"
         };
 
         private void OnPreprocessTexture()
@@ -48,7 +41,8 @@ namespace DiscoPoker.UI.Editor
             importer.wrapMode = TextureWrapMode.Clamp;
             importer.filterMode = FilterMode.Bilinear;
             importer.textureCompression = TextureImporterCompression.Uncompressed;
-            importer.maxTextureSize = 4096;
+            // кадры шара 1254² ×10 — на экране они 130 px, полный размер только жрёт память
+            importer.maxTextureSize = assetPath.Contains("/Animations/") ? 512 : 4096;
 
             var spriteSettings = new TextureImporterSettings();
             importer.ReadTextureSettings(spriteSettings);
@@ -75,7 +69,7 @@ namespace DiscoPoker.UI.Editor
         [MenuItem("Tools/Disco Poker/Reimport Programmer Ready UI")]
         private static void ReimportPreparedUi()
         {
-            var textureGuids = AssetDatabase.FindAssets("t:Texture2D", PreparedTextureRoots);
+            var textureGuids = AssetDatabase.FindAssets("t:Texture2D", Array.ConvertAll(PreparedTextureRoots, r => r.TrimEnd('/')));
 
             foreach (var guid in textureGuids)
             {
