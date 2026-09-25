@@ -28,9 +28,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
     у многих PNG запечён текст/цифры — список в `UI/Documentation/README.md`, брать `*empty*`/`without_UI` варианты.
 - `Assets/PokerClient/Prefabs/` — пусто; префабы — когда будут спрайты карт.
 - `Assets/Scenes/SampleScene.unity` — единственная сцена.
-- `game/` — сервер: `app/core/` чистое ядро, `app/api/ws.py` эндпоинт `/ws`, `app/protocol/messages.py` схема сообщений.
-  **Справочник протокола: `game/docs/PROTOCOL.md`, требования к клиенту: `game/docs/CLIENT_NETWORKING.md`** —
-  при любом вопросе «какое поле/какое сообщение» смотреть туда, не угадывать.
+- `game/` — сервер (FastAPI, Python 3.11+): `app/core/` — синхронное ядро без сети и asyncio (`game.py` движок раздачи,
+  `pot.py`, `hand_eval.py`, `deck_provider.py`); `app/services/` — `registry.py` (реестр столов, `quick_join`),
+  `table.py` (стол-актор, по asyncio-задаче на стол), `hub.py` (player_id → живой сокет); `app/api/ws.py` эндпоинт `/ws`,
+  `app/api/http.py` (`/auth/guest`, `/health`); `app/protocol/messages.py` схема сообщений. Без Postgres/Redis работает в памяти.
+  **Справочник протокола: `game/docs/PROTOCOL.md`, требования к клиенту: `game/docs/CLIENT_NETWORKING.md`,
+  устройство сервера: `game/docs/ARCHITECTURE.md`** — при любом вопросе «какое поле/какое сообщение» смотреть туда, не угадывать.
 
 ## Правила
 - Два `asmdef`: `Scripts/PokerClient.asmdef` (весь код) и `Tests/EditMode/PokerClient.Tests.asmdef`.
@@ -49,7 +52,9 @@ EditMode-тесты модели в `Assets/PokerClient/Tests/EditMode/TableMode
 или батчем (команды ниже). Один тест: добавить `-testFilter PokerClient.Tests.TableModelTests.Street_ReplacesBoardEntirely`.
 Результат — в `t.xml` (`<test-case ... result="Passed">`), лог компиляции — `t.log`.
 
-Сервер: `cd game && make test` (pytest), `make lint` (ruff), `make run` (uvicorn с reload), `make bots BOTS=5 HANDS=20`.
+Сервер (из `game/`, в `.venv`, который создаёт `scripts/run_local.sh`): `make test` (pytest; `pyproject.toml`: `asyncio_mode=auto`,
+`pythonpath=.`), один тест — `pytest tests/test_pot.py -k имя_теста`; `make lint` (ruff, line-length 100);
+`make run` (uvicorn с reload), `make bots BOTS=5 HANDS=20`.
 
 ## Архитектура клиента
 
@@ -143,60 +148,7 @@ minSdk 26, iOS 15. Bundle id `com.discopoker.client` — заглушка, см�
 - Unity MCP: relay зарегистрирован в Claude Code как `unity-mcp` (user scope).
   Первое подключение подтверждать в Editor → Project Settings → AI → Unity MCP Server.
 
-## Состояние на 2026-09-19 вечер (для продолжения в новой сессии)
+## Прогресс
 
-Всё ниже закоммичено: `07399ae` на `main`, рабочее дерево чистое. Сервер и боты остановлены.
-
-**Сделано и проверено против локального сервера с ботами** (Android-эмулятор Pixel_9a и iOS-симулятор iPhone 17):
-подключение, `quick_join`, отрисовка раздачи (места, борд, банк, ставки, дилер, вскрытие, победители,
-таймер по серверному времени), свой ход по `options` (фолд/чек/колл/бет/рейз со слайдером/олл-ин),
-реконнект по `table_snapshot`. 5/5 EditMode-тестов модели.
-
-**Сегодня:**
-- Арт-пак разложен: всё в `Art/UI/` (HUD, Map, Loading, Tutorial, Locations/01..04, Animations/Balls,
-  Documentation). Карт, фишек, фона стола, шрифтов и звуков в паке **нет**. Остатки чужого Unity-проекта
-  удалены, архив `DiscoPocker_ForProgramming.rar` (182 МБ, не в git) вынесен в корень проекта.
-- Новый дизайн клиента: экран загрузки (фон `Loading/`, неоновая панель, шар из 10 кадров на 12 fps),
-  лобби на том же фоне, стол — фон локации 01 с затемнением + объект стола с креслами, карты рисуются
-  кодом (белый скруглённый спрайт, масти из динамического fallback-шрифта). Палитра ночная фиолетовая.
-- `PokerSession` и `TableView` теперь живут на объекте `Poker` в `SampleScene`, спрайты через `[SerializeField]`,
-  бутстрап из кода убран.
-- Android: `Builds/android/DiscoPoker.apk` (9-я сборка), проверено на эмуляторе.
-- iOS-симулятор: `BuildIosSimulator` → `Builds/ios-sim` → `xcodebuild` (см. «Платформы»), запущено и проверено
-  на iPhone 17 до раздачи с ходом. Окно симулятора в Xcode 27 — **Device Hub**. Тестовый хук
-  `POKER_AUTOJOIN=1` (переменная окружения, `SIMCTL_CHILD_` префикс) — автоподключение и `quick_join`.
-- На устройство iOS по-прежнему не ставилось (нет Apple ID/сертификата).
-
-**Грабли, которые уже съедены (не повторять):**
-- `ClientWebSocket.ConnectAsync` в Mono игнорирует CancellationToken — таймаут только через
-  `Task.WhenAny` + `Abort()` (WsTransport). Без этого реконнект виснет навсегда.
-- CanvasScaler match 0.5: на 2424×1080 высота холста ~960 единиц, низ верстать от нижнего края,
-  верхнее место не выше y=300 (иначе рубашки карт над ним режутся краем).
-- ♠♥♦♣ нет в статическом атласе `LiberationSans SDF`, но есть в TTF и подключённом динамическом fallback:
-  `HasCharacter(c, searchFallbacks: true, tryAddCharacter: true)`, иначе масти рисуются буквами.
-- Эмулятор ходит на мак по LAN-IP (192.168.0.43) или `10.0.2.2`; свободное место на /data
-  AVD было забито, помог `-wipe-data` (config.ini: `disk.dataPartition.size=8G`).
-- `adb shell input keyevent` в лобби может нажать кнопку. Боты сливают стеки за 5–10 раздач и уходят
-  в сит-аут; наш игрок после 3 автофолдов — тоже (сервер помнит токен). Для чистого теста перезапускать
-  сервер + ботов (`pkill -f bot_client.py; pkill -f "uvicorn app.main"`), в памяти балансы обнуляются.
-- Логи: Android — `adb logcat -d | grep -E "←|→"`; iOS — только `simctl launch --console`, в `log show`
-  Unity-лог не попадает. Аргументы командной строки на iOS в C# пустые.
-- iOS-симулятор: `iOSSimulatorArchitecture` должен быть 1 (arm64), иначе Unity кладёт x86_64-рантайм;
-  AppUI (через `com.unity.ai.assistant`) зовёт нативный `NativeAppUI_*` при старте плеера, для симулятора
-  его закрывает `Plugins/iOS/AppUISimulatorStub.mm`. Без стаба — чёрный экран и зависший крэш-репортер.
-- Экран загрузки на локальном сервере мелькает за доли секунды: проверять на хосте, который молча
-  роняет пакеты (например `8.8.8.8:8000`), а не на недоступном (тот отваливается мгновенно).
-- На iPhone 17 слева вырез камеры перекрывает край; панели в него не попадают, но safe area учитывать.
-
-**Бэклог, по важности:**
-1. Кнопка «Вернуться» (`sit_in`), когда `you.sitting_out`/`seat_update` сит-аут — сейчас
-   после 3 автофолдов игрок застревает в сит-ауте без выхода. Рядом — докупка (`rebuy`).
-2. Показ ошибок сервера (`error`) заметнее и обработка `4001` с экраном «вход с другого устройства».
-3. Спрайты карт/фишек, когда придут в `Art/Cards`, `Art/Chips`; префабы вместо UI из кода.
-   Кнопки Fold/Call/Raise и панели стола от художника тоже пока не пришли.
-4. Выбор уровня ставок в лобби (сейчас всегда `low`), кнопка «Отключиться» за столом.
-5. Анимации раздачи (`cards_dealt`) и движения фишек — отдельная очередь от сетевой.
-6. iOS-устройство: добавить Apple ID в Xcode, Team ID в Player Settings, прогнать на iPhone (спарен).
-   Safe area под вырез.
-7. Сервер: при одновременном `quick_join` пяти ботов один уехал на второй стол (гонка в
-   registry) — не клиент, но мешает тестам.
+Где остановились, что проверено, съеденные грабли и бэклог — в `PROGRESS.md`. Читать первым в новой сессии,
+обновлять в конце сессии (вместе с коммитом).

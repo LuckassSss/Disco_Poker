@@ -117,3 +117,6 @@ InitTestScene*.unity*
 # распакованный архив арта, 176 МБ, не для git
 *.rar
 *.rar.meta
+
+# результаты EditMode-тестов из батч-прогона
+/t.xml
