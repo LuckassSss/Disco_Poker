@@ -371,10 +371,10 @@ namespace PokerClient
             _hudBalance = AddText(Box(currency, "Balance", new Vector2(30, 2), new Vector2(150, 60)), 30, TextAlignmentOptions.Right, Gold);
             MakeButton(hud, "Выйти", new Vector2(-24, 0), new Vector2(170, 64), _s.Disconnect, Grey, new Vector2(1f, 0.5f));
 
-            // окно подключения поверх карты, только в Disconnected
+            // экран подключения на фоне заставки (как экран загрузки), только в Disconnected; карта — после авторизации
             _connectPanel = Stretch(t, "Connect").gameObject;
-            MakePanel(_connectPanel.GetComponent<RectTransform>(), new Color(0, 0, 0, 0.55f));
-            var panel = Box(_connectPanel.transform, "Panel", new Vector2(0, 0), new Vector2(980, 330));
+            MakeCover(_connectPanel.transform, _loadingBackground, Night);
+            var panel = Box(_connectPanel.transform, "Panel", new Vector2(0, 40), new Vector2(980, 330), new Vector2(0.5f, 0f));
             MakePanel(panel, Panel);
             AddText(Box(panel, "HostLabel", new Vector2(-330, 100), new Vector2(240, 60)), 32, TextAlignmentOptions.Right).text = "Сервер";
             _host = MakeInput(panel, new Vector2(110, 100), new Vector2(600, 72), _s.Host);

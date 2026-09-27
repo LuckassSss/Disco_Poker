@@ -27,7 +27,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
     `Animations/Balls/` (кадры диско-шара). **Карт и фишек в нём нет.**
     Файлы не переименовывать; ключи для кода — `id` из `UI/Documentation/ui-assets.json`;
     у многих PNG запечён текст/цифры — список в `UI/Documentation/README.md`, брать `*empty*`/`without_UI` варианты.
-    `UI/Locations/Location01..03/Tables/` — рендеры покерных столов (вид сверху, 1672×941, 5 кресел — стол 5-max и на сервере), выгружены
+    `UI/Locations/Location01..03/Tables/` — рендеры покерных столов (вид сверху, 1672×941, 5 кресел = 5-max на сервере), выгружены
     из Figma (`figma.com/design/hULeSpuZvTsyODA1jnZWJd`, мудборд без фреймов; локация 04 и остальное — там же).
 - `Assets/PokerClient/Prefabs/` — пусто; префабы — когда будут спрайты карт.
 - `Assets/Scenes/SampleScene.unity` — единственная сцена.
