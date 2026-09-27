@@ -19,6 +19,7 @@ namespace PokerClient
         const string TokenKey = "poker.token";
         const string HostKey = "poker.host";
         const string NickKey = "poker.nick";
+        const string LoginKey = "poker.login";
         const float PingInterval = 12f;
         static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(10) };
 
@@ -28,6 +29,7 @@ namespace PokerClient
         public string Message { get; private set; } = "";
         public string Host { get; private set; }
         public string Nickname { get; private set; }
+        public string Login { get; private set; }
         /// <summary>Ход отправлен, ждём ответа сервера — кнопки заблокированы.</summary>
         public bool ActionPending { get; private set; }
 
@@ -45,6 +47,7 @@ namespace PokerClient
             Application.runInBackground = true;
             Host = PlayerPrefs.GetString(HostKey, "192.168.0.43:8000");
             Nickname = PlayerPrefs.GetString(NickKey, "Игрок");
+            Login = PlayerPrefs.GetString(LoginKey, "");
         }
 
         void OnDestroy() => _ws?.Dispose();
@@ -58,29 +61,59 @@ namespace PokerClient
             _autoJoin = Environment.GetEnvironmentVariable("POKER_AUTOJOIN") == "1"
                         || Array.IndexOf(Environment.GetCommandLineArgs(), "-autojoin") >= 0;
             Debug.Log($"autojoin={_autoJoin} args=[{string.Join(" ", Environment.GetCommandLineArgs())}]");
-            if (_autoJoin) Connect(Host, Nickname);
+            if (_autoJoin) ConnectGuest();
+            else Resume();
         }
 
         // ------------------------------------------------------------------ команды UI
-        public async void Connect(string host, string nickname)
+        /// <summary>Вход или регистрация по логину и паролю. Хост — сохранённый (`Host`), ник при регистрации = логин.</summary>
+        public void Connect(string login, string password, bool register)
         {
             if (State != ClientState.Disconnected) return;
-            Host = host.Trim();
-            Nickname = string.IsNullOrWhiteSpace(nickname) ? "Игрок" : nickname.Trim();
-            PlayerPrefs.SetString(HostKey, Host);
+            Login = login.Trim().ToLowerInvariant();
+            if (register) Nickname = Login;
+            PlayerPrefs.SetString(LoginKey, Login);
             PlayerPrefs.SetString(NickKey, Nickname);
             PlayerPrefs.Save();
 
+            var body = new JObject { ["login"] = Login, ["password"] = password };
+            if (register) body["nickname"] = Nickname;
+            Begin(register ? "auth/register" : "auth/login", body);
+        }
+
+        /// <summary>Продлевает сохранённый токен (3 дня с последнего входа). Без токена — остаёмся на форме входа.</summary>
+        public void Resume()
+        {
+            var saved = PlayerPrefs.GetString(TokenKey, "");
+            if (State != ClientState.Disconnected || saved == "") return;
+            Begin("auth/refresh", new JObject { ["token"] = saved });
+        }
+
+        /// <summary>Гостевой вход без пароля — для автотестов (POKER_AUTOJOIN) и ботов.</summary>
+        public void ConnectGuest()
+        {
+            if (State != ClientState.Disconnected) return;
+            var body = new JObject { ["nickname"] = Nickname };
+            var saved = PlayerPrefs.GetString(TokenKey, "");
+            if (saved != "") body["token"] = saved;
+            Begin("auth/guest", body);
+        }
+
+        async void Begin(string path, JObject body)
+        {
             State = ClientState.Connecting;
-            Message = "Получаю токен…";
+            Message = "Авторизация…";
             try
             {
-                var token = await AuthAsync();
+                var token = await PostAuthAsync(path, body);
+                PlayerPrefs.SetString(TokenKey, token);
+                PlayerPrefs.SetString(NickKey, Nickname);
+                PlayerPrefs.Save();
                 await OpenSocketAsync(token);
             }
             catch (Exception e)
             {
-                Fail("Не подключился: " + e.Message);
+                Fail(e.Message);
             }
         }
 
@@ -111,25 +144,22 @@ namespace PokerClient
         public void SitIn() => Send("sit_in");
 
         // ------------------------------------------------------------------ подключение
-        async Task<string> AuthAsync()
+        /// <summary>POST /auth/*: возвращает токен, при ошибке бросает текст detail сервера. 401 — стираем сохранённый токен.</summary>
+        async Task<string> PostAuthAsync(string path, JObject body)
         {
-            var saved = PlayerPrefs.GetString(TokenKey, "");
-            var token = await PostGuestAsync(saved);
-            if (token == null && saved != "") token = await PostGuestAsync(""); // старый токен протух — новая личность
-            if (token == null) throw new Exception("сервер отверг гостевой вход");
-            PlayerPrefs.SetString(TokenKey, token);
-            PlayerPrefs.Save();
-            return token;
-        }
-
-        async Task<string> PostGuestAsync(string oldToken)
-        {
-            var body = new JObject { ["nickname"] = Nickname };
-            if (oldToken != "") body["token"] = oldToken;
             using var content = new StringContent(body.ToString(Formatting.None), Encoding.UTF8, "application/json");
-            using var resp = await Http.PostAsync($"http://{Host}/auth/guest", content);
-            if (!resp.IsSuccessStatusCode) return null;
-            return JObject.Parse(await resp.Content.ReadAsStringAsync()).Value<string>("token");
+            using var resp = await Http.PostAsync($"http://{Host}/{path}", content);
+            var text = await resp.Content.ReadAsStringAsync();
+            JObject json = null;
+            try { json = JObject.Parse(text); } catch (JsonException) { }
+            if (!resp.IsSuccessStatusCode)
+            {
+                if ((int)resp.StatusCode == 401) PlayerPrefs.DeleteKey(TokenKey);
+                var detail = json?["detail"];
+                throw new Exception(detail?.Type == JTokenType.String ? detail.ToString() : $"Ошибка сервера {(int)resp.StatusCode}");
+            }
+            Nickname = json?.Value<string>("nickname") ?? Nickname;
+            return json?.Value<string>("token") ?? throw new Exception("сервер не вернул токен");
         }
 
         async Task OpenSocketAsync(string token)

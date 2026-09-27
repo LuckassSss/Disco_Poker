@@ -56,8 +56,10 @@ EditMode-тесты модели в `Assets/PokerClient/Tests/EditMode/TableMode
 Результат — в `t.xml` (`<test-case ... result="Passed">`), лог компиляции — `t.log`.
 
 Сервер (из `game/`, в `.venv`, который создаёт `scripts/run_local.sh`): `make test` (pytest; `pyproject.toml`: `asyncio_mode=auto`,
-`pythonpath=.`), один тест — `pytest tests/test_pot.py -k имя_теста`; `make lint` (ruff, line-length 100);
-`make run` (uvicorn с reload), `make bots BOTS=5 HANDS=20`.
+`pythonpath=.`; без pytest падает на `python tests/run_all.py`), один тест — `pytest tests/test_pot.py -k имя_теста`;
+`make lint` (ruff, line-length 100); `make run` (uvicorn с reload), `make bots BOTS=5 HANDS=20`.
+Конфиг сервера — переменные окружения (`app/config.py`), `run_local.sh` копирует `.env.example` в `.env` (не в git).
+Для проверок клиента запускать с `GUEST_START_BALANCE=1000000`: по умолчанию 10 000 = бай-ину, докупиться не на что.
 
 ## Архитектура клиента
 
@@ -90,9 +92,13 @@ Joining → AtTable`, плюс `Reconnecting`. В `AtTable` переходим �
 
 ## Подключение и токен
 
-`POST /auth/guest {"nickname"}` → `token`, `player_id`, `balance`. Токен живёт 30
-суток и является ключом от аккаунта — сохранять на устройстве. Для продления той
-же личности слать прошлый токен; `player_id` слать нельзя, он публичен.
+`POST /auth/register|login {"login","password"[,"nickname"]}` → `token`, `player_id`, `balance`.
+Токен аккаунта живёт 3 дня; при каждом запуске клиент шлёт его в `POST /auth/refresh` и получает
+новый (`PokerSession.Resume`), `401` → форма входа. Каждая выдача отзывает прежние токены игрока: `jti` в токене,
+текущий — в `SessionStore` (`tokens.py`, память поверх `players.session_id`); проверка — `verify_token`, не `decode_token`. `POST /auth/guest {"nickname"}` (30 суток,
+продление старым токеном) остался для ботов и `POKER_AUTOJOIN`. `player_id` слать нельзя, он публичен.
+Пароли — `hashlib.scrypt` в `app/auth/users.py`; логины — колонки `players.login/password_hash`
+(`create_all` не добавит их в уже существующую таблицу — пересоздать).
 
 Дальше `ws://host:8000/ws?token=<token>` (или коннект без параметра и первым
 сообщением `auth`). Сессия установлена только после `welcome`; при реконнекте
@@ -127,6 +133,16 @@ minSdk 26, iOS 15. Bundle id `com.discopoker.client` — заглушка, см�
   $U -batchmode -nographics -projectPath "$PWD" -buildTarget iOS -executeMethod PokerClient.Editor.BuildTools.BuildIos -quit -logFile i.log
   ```
   Выход: `Builds/android/DiscoPoker.apk`, `Builds/ios/` (Xcode-проект, дальше Xcode → устройство).
+  Меню редактора `Poker/…` — те же сборки плюс `Import TMP Essentials`.
+- Android-эмулятор (`adb` не в PATH):
+  ```
+  ADB=/Applications/Unity/Hub/Editor/6000.5.5f1/PlaybackEngines/AndroidPlayer/SDK/platform-tools/adb
+  ~/Library/Android/sdk/emulator/emulator -avd Pixel_9a &
+  $ADB install -r Builds/android/DiscoPoker.apk && $ADB shell monkey -p com.discopoker.client 1
+  $ADB logcat -d | grep -E "←|→"      # лог сообщений клиента
+  ```
+  Эмулятор ходит на сервер по LAN-адресу мака (не `localhost`). Хост по умолчанию зашит в `PokerSession.Awake`
+  (`192.168.0.43:8000`) и сохраняется в `PlayerPrefs`; на Android/в редакторе автоподключение — аргумент `-autojoin`.
 - iOS-симулятор (подпись не нужна, но это отдельная сборка Unity под Simulator SDK):
   ```
   $U -batchmode -nographics -projectPath "$PWD" -buildTarget iOS -executeMethod PokerClient.Editor.BuildTools.BuildIosSimulator -quit -logFile i.log

@@ -87,7 +87,7 @@ namespace PokerClient
         GameObject _lobby, _table, _loading;
         Image _ball;
         TMP_Text _loadingLabel;
-        TMP_InputField _host, _nick;
+        TMP_InputField _login, _password;
         GameObject _connectPanel;
         RectTransform _map, _tables;
         TMP_Text _hudNick, _hudBalance;
@@ -165,7 +165,7 @@ namespace PokerClient
             if (!atTable)
             {
                 _connectPanel.SetActive(st == ClientState.Disconnected);
-                _host.interactable = _nick.interactable = st == ClientState.Disconnected;
+                _login.interactable = _password.interactable = st == ClientState.Disconnected;
                 _hudNick.text = _s.Nickname;
                 _hudBalance.text = st == ClientState.Authorized ? Chips(m.Balance) : "—";
                 foreach (var b in _tableButtons) b.interactable = st == ClientState.Authorized;
@@ -376,11 +376,15 @@ namespace PokerClient
             MakeCover(_connectPanel.transform, _loadingBackground, Night);
             var panel = Box(_connectPanel.transform, "Panel", new Vector2(0, 40), new Vector2(980, 330), new Vector2(0.5f, 0f));
             MakePanel(panel, Panel);
-            AddText(Box(panel, "HostLabel", new Vector2(-330, 100), new Vector2(240, 60)), 32, TextAlignmentOptions.Right).text = "Сервер";
-            _host = MakeInput(panel, new Vector2(110, 100), new Vector2(600, 72), _s.Host);
-            AddText(Box(panel, "NickLabel", new Vector2(-330, 10), new Vector2(240, 60)), 32, TextAlignmentOptions.Right).text = "Ник";
-            _nick = MakeInput(panel, new Vector2(110, 10), new Vector2(600, 72), _s.Nickname);
-            MakeButton(panel, "Подключиться", new Vector2(0, -95), new Vector2(440, 96), () => _s.Connect(_host.text, _nick.text), Magenta);
+            AddText(Box(panel, "LoginLabel", new Vector2(-330, 100), new Vector2(240, 60)), 32, TextAlignmentOptions.Right).text = "Логин";
+            _login = MakeInput(panel, new Vector2(110, 100), new Vector2(600, 72), _s.Login);
+            AddText(Box(panel, "PasswordLabel", new Vector2(-330, 15), new Vector2(240, 60)), 32, TextAlignmentOptions.Right).text = "Пароль";
+            _password = MakeInput(panel, new Vector2(110, 15), new Vector2(600, 72), "");
+            _password.contentType = TMP_InputField.ContentType.Password;
+            MakeButton(panel, "Войти", new Vector2(-170, -90), new Vector2(400, 96),
+                () => _s.Connect(_login.text, _password.text, register: false), Magenta);
+            MakeButton(panel, "Регистрация", new Vector2(250, -90), new Vector2(400, 96),
+                () => _s.Connect(_login.text, _password.text, register: true), Grey);
 
             ShowLocation(0);
         }
