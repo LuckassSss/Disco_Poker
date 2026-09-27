@@ -420,5 +420,29 @@ MonoBehaviour:
   - {fileID: 21300000, guid: 183e8f0567b286d48a7fa0bd2b89dffb, type: 3}
   - {fileID: 21300000, guid: 3a3bb78359683864c97a9292c6cf8356, type: 3}
   - {fileID: 21300000, guid: 597f97a8fc399d645991684d5f7ecc8f, type: 3}
-  _tableBackground: {fileID: 21300000, guid: 78de19659815961459c4ea64f7548762, type: 3}
-  _tableObject: {fileID: 21300000, guid: a59ef5f00c0be69489dd280fa1ac5f08, type: 3}
+  _tableBackground: {fileID: 21300000, guid: 88b55c8f2ebb44ea6a3fd62e64b8e6d8, type: 3}
+  _locations:
+  - Background: {fileID: 21300000, guid: 78de19659815961459c4ea64f7548762, type: 3}
+    Names:
+    - {fileID: 21300000, guid: 8d5eface8fd3d194cbc39c15bb9278b9, type: 3}
+    - {fileID: 21300000, guid: 8b570adc6a6fdb946941550fd81fa7d0, type: 3}
+    - {fileID: 21300000, guid: ca55fe310fff22848a73e947b25e0b58, type: 3}
+  - Background: {fileID: 21300000, guid: 031ce895c45b3d9449d1505907de62e7, type: 3}
+    Names:
+    - {fileID: 21300000, guid: 468782ef08ba1514d80da7b34cc749b6, type: 3}
+    - {fileID: 21300000, guid: 65ab515d853938240992d669ce4b7b87, type: 3}
+    - {fileID: 21300000, guid: a601cbbb70ca4f944ae2680cc3109517, type: 3}
+    - {fileID: 21300000, guid: 41750403c81dfe84ca590212ef9ce1a2, type: 3}
+  - Background: {fileID: 21300000, guid: da7c912e12968294db250fa51083d756, type: 3}
+    Names:
+    - {fileID: 21300000, guid: cad05b86b573b494ea270ac767bdca4e, type: 3}
+    - {fileID: 21300000, guid: fbbad170853d045439d2b9874bce0a0b, type: 3}
+    - {fileID: 21300000, guid: 7ae28ff36f5cebf49b44e83bd04eaadb, type: 3}
+    - {fileID: 21300000, guid: e7637b812de13904991338e020cec87a, type: 3}
+  _hudBar: {fileID: 21300000, guid: 7ceef1bc00aea9148bdfd29f7ef71098, type: 3}
+  _currencyPanel: {fileID: 21300000, guid: ed5936c60cbef664692b278a2be9e516, type: 3}
+  _avatar: {fileID: 21300000, guid: 2709dcd806e63f5409b41bc912581aa4, type: 3}
+  _activePanel: {fileID: 21300000, guid: 8261f49dc114f5a458a13df61affcc70, type: 3}
+  _lockPanel: {fileID: 21300000, guid: 16feffb66f4bf4d4fb23ae6ae80cd7f9, type: 3}
+  _unlockedLocations: 3
+  _playerLevel: 1

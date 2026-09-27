@@ -51,7 +51,7 @@ namespace PokerClient
     /// </summary>
     public sealed class TableModel
     {
-        public const int MaxSeats = 6;
+        public const int MaxSeats = 5;
 
         public readonly SeatModel[] Seats = new SeatModel[MaxSeats];
         public string TableId;

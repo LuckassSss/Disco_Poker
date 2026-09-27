@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
 using TMPro;
 using UnityEngine;
@@ -21,15 +22,44 @@ namespace PokerClient
         [SerializeField] Sprite _loadingBackground; // Loading/loading screen_ no loading ui
         [SerializeField] Sprite _loadingPanel;      // Loading/loading-ui-miami-disco-no-text
         [SerializeField] Sprite[] _ballFrames;      // Animations/Balls/Frames/*
-        [SerializeField] Sprite _tableBackground;   // Locations/Location01/Backgrounds/without_UI
-        [SerializeField] Sprite _tableObject;       // Locations/Location01/Objects/object-group-1-poker-table
+        [SerializeField] Sprite _tableBackground;   // Locations/Location01/Tables/table_1 (вид сверху, 5 кресел = 5 мест)
+
+        [Header("Лобби: карта локаций и HUD")]
+        [SerializeField] LocationArt[] _locations;  // Locations/Location01..03, порядок столов — как в TableRects
+        [SerializeField] Sprite _hudBar;            // HUD/hud_top_background_empty
+        [SerializeField] Sprite _currencyPanel;     // HUD/02_currency_empty-transparent
+        [SerializeField] Sprite _avatar;            // HUD/03_player_avatar
+        [SerializeField] Sprite _activePanel;       // Map/active-table-panel-americana-80s
+        [SerializeField] Sprite _lockPanel;         // Map/table3-lock-panel-transparent
+        // ponytail: прогресс игрока сервер не присылает — уровень и число открытых локаций пока задаются в инспекторе
+        [SerializeField] int _unlockedLocations = 1;
+        [SerializeField] int _playerLevel = 1;
+
+        [System.Serializable]
+        public sealed class LocationArt
+        {
+            public Sprite Background;
+            public Sprite[] Names; // по столам
+        }
+
+        // объекты-столы на карте: прямоугольник в долях фона (x, y от левого верхнего угла, w, h), снято с референсов W UI / NEW_VAR
+        static readonly Rect[][] TableRects =
+        {
+            new[] { new Rect(0.09f, 0.175f, 0.22f, 0.245f), new Rect(0.365f, 0.32f, 0.227f, 0.37f), new Rect(0.688f, 0.39f, 0.22f, 0.255f) },
+            new[] { new Rect(0.14f, 0.325f, 0.21f, 0.22f), new Rect(0.345f, 0.165f, 0.345f, 0.225f), new Rect(0.085f, 0.64f, 0.3f, 0.29f), new Rect(0.53f, 0.5f, 0.44f, 0.43f) },
+            new[] { new Rect(0.055f, 0.3f, 0.305f, 0.42f), new Rect(0.65f, 0.66f, 0.25f, 0.3f), new Rect(0.765f, 0.085f, 0.17f, 0.37f), new Rect(0.31f, 0.15f, 0.24f, 0.33f) },
+        };
+        static readonly int[][] TableLevels = { new[] { 1, 2, 3 }, new[] { 1, 2, 3, 5 }, new[] { 1, 2, 3, 4 } };
+        // ponytail: сервер локаций не знает — стол №i в локации идёт на уровень ставок по индексу
+        static readonly string[] TableStakes = { "micro", "low", "mid", "mid" };
 
         const float BallFps = 12f;
 
-        // экранные позиции мест: 0 — своё (снизу, привязано к нижнему краю), дальше по часовой стрелке
-        static readonly Vector2[] SeatPos =
+        // экранные позиции мест в долях картинки стола (x, y от верхнего края): 0 — своё (снизу, привязано к краю экрана),
+        // дальше по часовой стрелке по креслам на рендере: слева, верх-слева, верх-справа, справа (стол 5-max).
+        static readonly Vector2[] SeatUV =
         {
-            Vector2.zero, new(-680, -120), new(-560, 230), new(0, 300), new(560, 230), new(680, -120),
+            Vector2.zero, new(0.196f, 0.422f), new(0.374f, 0.16f), new(0.624f, 0.16f), new(0.802f, 0.422f),
         };
         static readonly Color Night = new(0.08f, 0.03f, 0.14f);
         static readonly Color Panel = new(0.06f, 0.02f, 0.12f, 0.72f);
@@ -58,8 +88,12 @@ namespace PokerClient
         Image _ball;
         TMP_Text _loadingLabel;
         TMP_InputField _host, _nick;
-        Button _lobbyButton;
-        TMP_Text _lobbyButtonText, _lobbyMessage;
+        GameObject _connectPanel;
+        RectTransform _map, _tables;
+        TMP_Text _hudNick, _hudBalance;
+        Button _prevLoc, _nextLoc;
+        readonly List<Button> _tableButtons = new();
+        int _location;
 
         readonly TMP_Text[] _seatText = new TMP_Text[TableModel.MaxSeats];
         readonly RectTransform[] _seatRt = new RectTransform[TableModel.MaxSeats];
@@ -130,10 +164,11 @@ namespace PokerClient
 
             if (!atTable)
             {
-                _lobbyButton.interactable = st is ClientState.Disconnected or ClientState.Authorized;
-                _lobbyButtonText.text = st == ClientState.Authorized ? "За стол" : "Подключиться";
+                _connectPanel.SetActive(st == ClientState.Disconnected);
                 _host.interactable = _nick.interactable = st == ClientState.Disconnected;
-                _lobbyMessage.text = st == ClientState.Authorized ? $"Баланс: {m.Balance}" : "";
+                _hudNick.text = _s.Nickname;
+                _hudBalance.text = st == ClientState.Authorized ? Chips(m.Balance) : "—";
+                foreach (var b in _tableButtons) b.interactable = st == ClientState.Authorized;
                 return;
             }
 
@@ -297,7 +332,7 @@ namespace PokerClient
             BuildLobby(root);
             BuildTable(root);
             BuildLoading(root);
-            _message = AddText(Box(root, "Message", new Vector2(0, -4), new Vector2(1000, 40), new Vector2(0.5f, 1f)), 26, TextAlignmentOptions.Center, Gold);
+            _message = AddText(Box(root, "Message", new Vector2(0, -104), new Vector2(1000, 40), new Vector2(0.5f, 1f)), 26, TextAlignmentOptions.Center, Gold);
         }
 
         void BuildLoading(Transform root)
@@ -317,29 +352,107 @@ namespace PokerClient
         {
             _lobby = Stretch(root, "Lobby").gameObject;
             var t = _lobby.transform;
-            MakeCover(t, _loadingBackground, Night);
-            if (_loadingBackground == null)
-                AddText(Box(t, "Title", new Vector2(0, 300), new Vector2(1200, 120)), 96, TextAlignmentOptions.Center, Magenta).text = "DISCO POKER";
+            _map = MakeCover(t, null, Night); // спрайт локации ставит ShowLocation
+            _tables = Stretch(_map, "Tables");
 
-            var panel = Box(t, "Panel", new Vector2(0, 40), new Vector2(980, 360), new Vector2(0.5f, 0f));
+            _prevLoc = MakeButton(t, "‹", new Vector2(24, 0), new Vector2(80, 160), () => ShowLocation(_location - 1), Panel, new Vector2(0f, 0.5f));
+            _nextLoc = MakeButton(t, "›", new Vector2(-24, 0), new Vector2(80, 160), () => ShowLocation(_location + 1), Panel, new Vector2(1f, 0.5f));
+
+            // HUD сверху: аватар, ник, баланс, выход
+            var hud = Stretch(t, "Hud");
+            hud.anchorMin = new Vector2(0, 1);
+            hud.pivot = new Vector2(0.5f, 1f);
+            hud.sizeDelta = new Vector2(0, 96);
+            MakeImage(hud, _hudBar, Panel);
+            MakeImage(Box(hud, "Avatar", new Vector2(24, 0), new Vector2(80, 80), new Vector2(0f, 0.5f)), _avatar, Magenta);
+            _hudNick = AddText(Box(hud, "Nick", new Vector2(116, 0), new Vector2(260, 60), new Vector2(0f, 0.5f)), 30, TextAlignmentOptions.Left, Gold);
+            var currency = Box(hud, "Currency", new Vector2(390, 0), new Vector2(232, 90), new Vector2(0f, 0.5f));
+            MakeImage(currency, _currencyPanel, Panel);
+            _hudBalance = AddText(Box(currency, "Balance", new Vector2(30, 2), new Vector2(150, 60)), 30, TextAlignmentOptions.Right, Gold);
+            MakeButton(hud, "Выйти", new Vector2(-24, 0), new Vector2(170, 64), _s.Disconnect, Grey, new Vector2(1f, 0.5f));
+
+            // окно подключения поверх карты, только в Disconnected
+            _connectPanel = Stretch(t, "Connect").gameObject;
+            MakePanel(_connectPanel.GetComponent<RectTransform>(), new Color(0, 0, 0, 0.55f));
+            var panel = Box(_connectPanel.transform, "Panel", new Vector2(0, 0), new Vector2(980, 330));
             MakePanel(panel, Panel);
-            AddText(Box(panel, "HostLabel", new Vector2(-330, 120), new Vector2(240, 60)), 32, TextAlignmentOptions.Right).text = "Сервер";
-            _host = MakeInput(panel, new Vector2(110, 120), new Vector2(600, 72), _s.Host);
-            AddText(Box(panel, "NickLabel", new Vector2(-330, 30), new Vector2(240, 60)), 32, TextAlignmentOptions.Right).text = "Ник";
-            _nick = MakeInput(panel, new Vector2(110, 30), new Vector2(600, 72), _s.Nickname);
-            _lobbyButton = MakeButton(panel, "Подключиться", new Vector2(-120, -85), new Vector2(440, 96), OnLobbyButton, Magenta);
-            _lobbyButtonText = _lobbyButton.GetComponentInChildren<TMP_Text>();
-            MakeButton(panel, "Отключиться", new Vector2(250, -85), new Vector2(260, 96), _s.Disconnect, Grey);
-            _lobbyMessage = AddText(Box(panel, "LobbyMessage", new Vector2(0, -155), new Vector2(900, 40)), 28, TextAlignmentOptions.Center, Gold);
+            AddText(Box(panel, "HostLabel", new Vector2(-330, 100), new Vector2(240, 60)), 32, TextAlignmentOptions.Right).text = "Сервер";
+            _host = MakeInput(panel, new Vector2(110, 100), new Vector2(600, 72), _s.Host);
+            AddText(Box(panel, "NickLabel", new Vector2(-330, 10), new Vector2(240, 60)), 32, TextAlignmentOptions.Right).text = "Ник";
+            _nick = MakeInput(panel, new Vector2(110, 10), new Vector2(600, 72), _s.Nickname);
+            MakeButton(panel, "Подключиться", new Vector2(0, -95), new Vector2(440, 96), () => _s.Connect(_host.text, _nick.text), Magenta);
+
+            ShowLocation(0);
         }
+
+        /// <summary>Показывает карту локации: фон и объекты-столы. Закрытые столы — замок, открытые — кнопка quick_join.</summary>
+        void ShowLocation(int idx)
+        {
+            if (_locations == null || _locations.Length == 0) return;
+            _location = Mathf.Clamp(idx, 0, Mathf.Min(_locations.Length, TableRects.Length) - 1);
+            var art = _locations[_location];
+            var cover = _map.GetComponent<Image>();
+            cover.sprite = art.Background;
+            cover.color = art.Background != null ? Color.white : Night;
+            if (art.Background != null) _map.GetComponent<AspectRatioFitter>().aspectRatio = art.Background.rect.width / art.Background.rect.height;
+
+            foreach (Transform c in _tables) Destroy(c.gameObject);
+            _tableButtons.Clear();
+            var rects = TableRects[_location];
+            for (var i = 0; i < rects.Length; i++)
+            {
+                var r = rects[i];
+                var level = TableLevels[_location][i];
+                var locked = level > _playerLevel;
+                // якоря в долях фона: объект масштабируется вместе с картой
+                var spot = new GameObject($"Table{i + 1}", typeof(RectTransform)).GetComponent<RectTransform>();
+                spot.SetParent(_tables, false);
+                spot.anchorMin = new Vector2(r.xMin, 1f - r.yMax);
+                spot.anchorMax = new Vector2(r.xMax, 1f - r.yMin);
+                spot.offsetMin = spot.offsetMax = Vector2.zero;
+                spot.gameObject.AddComponent<Image>().color = Color.clear; // прозрачная зона клика
+                // ponytail: серые *-inactive спрайты не накладываем — их точные координаты на фоне неизвестны, объект двоится
+
+                if (locked)
+                {
+                    var lockRt = Box(spot, "Lock", Vector2.zero, new Vector2(240, 168));
+                    MakeImage(lockRt, _lockPanel, PanelActive);
+                    AddText(Stretch(lockRt, "Text"), 26, TextAlignmentOptions.Center, Cyan).text = $"СТОЛ {i + 1}\n\n\nУРОВЕНЬ {level}";
+                    continue;
+                }
+
+                var name = Box(spot, "Name", new Vector2(0, 58), new Vector2(340, 80));
+                name.pivot = new Vector2(0.5f, 0f);
+                MakeImage(name, At(art.Names, i), Color.clear).preserveAspect = true;
+                var panelImg = MakeImage(Box(spot, "Panel", Vector2.zero, new Vector2(300, 101)), _activePanel, PanelActive);
+                var stake = TableStakes[Mathf.Min(i, TableStakes.Length - 1)];
+                var button = spot.gameObject.AddComponent<Button>();
+                button.targetGraphic = panelImg;
+                button.onClick.AddListener(() => _s.QuickJoin(stake));
+                button.interactable = _s.State == ClientState.Authorized;
+                _tableButtons.Add(button);
+            }
+
+            _prevLoc.gameObject.SetActive(_location > 0);
+            _nextLoc.gameObject.SetActive(_location < Mathf.Min(_locations.Length, TableRects.Length) - 1);
+            _nextLoc.interactable = _location + 1 < _unlockedLocations;
+        }
+
+        static Sprite At(Sprite[] a, int i) => a != null && i < a.Length ? a[i] : null;
+        static string Chips(long n) => n.ToString("N0", CultureInfo.GetCultureInfo("ru-RU"));
 
         void BuildTable(Transform root)
         {
             _table = Stretch(root, "Table").gameObject;
             var t = _table.transform;
+            // рендер стола целиком по высоте экрана, чтобы все кресла были видны; боковые поля закрывает та же картинка растянутой подложкой
             MakeCover(t, _tableBackground, Night);
             MakePanel(Stretch(t, "Dim"), new Color(0, 0, 0, 0.45f));
-            MakeImage(Box(t, "TableObject", new Vector2(0, 110), new Vector2(1000, 600)), _tableObject, Color.white).preserveAspect = true;
+            var art = Stretch(t, "TableArt");
+            MakeImage(art, _tableBackground, Color.clear);
+            var fit = art.gameObject.AddComponent<AspectRatioFitter>();
+            fit.aspectRatio = _tableBackground != null ? _tableBackground.rect.width / _tableBackground.rect.height : 16f / 9f;
+            fit.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
 
             _header = AddText(Box(t, "Header", new Vector2(30, -30), new Vector2(1400, 50), new Vector2(0f, 1f)), 28, TextAlignmentOptions.Left);
             MakeButton(t, "Встать", new Vector2(-40, -70), new Vector2(240, 80), _s.LeaveTable, Grey, new Vector2(1f, 1f));
@@ -358,7 +471,8 @@ namespace PokerClient
                 // своё место (0) привязано к нижнему краю, чтобы на любом экране не наезжать на карты и центр
                 var seat = i == 0
                     ? Box(t, "Seat0", new Vector2(0, 375), new Vector2(340, 120), new Vector2(0.5f, 0f))
-                    : Box(t, $"Seat{i}", SeatPos[i], new Vector2(300, 130));
+                    : Box(art, $"Seat{i}", Vector2.zero, new Vector2(300, 130), new Vector2(SeatUV[i].x, 1f - SeatUV[i].y));
+                seat.pivot = new Vector2(0.5f, 0.5f);
                 _seatRt[i] = seat;
                 _seatBg[i] = MakePanel(seat, Panel);
                 _seatText[i] = AddText(Stretch(seat, "Text"), 26, TextAlignmentOptions.Center);
@@ -381,12 +495,6 @@ namespace PokerClient
             _slider.onValueChanged.AddListener(v => _sliderLabel.text = $"{_sliderPrefix}: {(long)v}");
 
             _actions = Box(t, "Actions", new Vector2(0, 55), new Vector2(1400, 100), new Vector2(0.5f, 0f));
-        }
-
-        void OnLobbyButton()
-        {
-            if (_s.State == ClientState.Disconnected) _s.Connect(_host.text, _nick.text);
-            else if (_s.State == ClientState.Authorized) _s.QuickJoin("low");
         }
 
         // ------------------------------------------------------------------ элементы
@@ -431,14 +539,14 @@ namespace PokerClient
         }
 
         /// <summary>Картинка на весь экран с обрезкой по краям (как CSS background-size: cover).</summary>
-        static void MakeCover(Transform parent, Sprite sprite, Color fallback)
+        static RectTransform MakeCover(Transform parent, Sprite sprite, Color fallback)
         {
             var rt = Stretch(parent, "Cover");
             MakeImage(rt, sprite, fallback);
-            if (sprite == null) return;
             var fit = rt.gameObject.AddComponent<AspectRatioFitter>();
-            fit.aspectRatio = sprite.rect.width / sprite.rect.height;
+            fit.aspectRatio = sprite != null ? sprite.rect.width / sprite.rect.height : 16f / 9f;
             fit.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
+            return rt;
         }
 
         TMP_Text AddText(RectTransform rt, float size, TextAlignmentOptions align, Color? color = null)

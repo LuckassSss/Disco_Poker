@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Poker Client (Unity)
 
 Клиент покерной игры (Texas Hold'em). Unity **6000.5.5f1**, URP 2D, uGUI, Input System, TextMeshPro.
-Сервер (Python/FastAPI, NLHE, 6 мест) лежит в этом же репо в `game/` — см. ниже.
+Сервер (Python/FastAPI, NLHE, 5 мест) лежит в этом же репо в `game/` — см. ниже.
 
 ## Структура
 - `Assets/PokerClient/Scripts/` — весь C# код (4 файла, по одному на слой архитектуры):
@@ -16,7 +16,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - `TableView.cs` — весь UI собирается из кода в `Start()`, читает модель в `Update()`. Спрайты приходят через
     `[SerializeField]` с объекта `Poker` в `SampleScene` (там же висит `PokerSession`; бутстрапа из кода нет).
     Карты рисуются программно (белый скруглённый спрайт генерируется в `MakeRoundedSprite`), экран загрузки —
-    фон `Loading/` + кадры шара из `Animations/Balls/`, стол — фон локации 01 + объект стола.
+    фон `Loading/` + кадры шара из `Animations/Balls/`, стол — рендер `Locations/Location01/Tables/table_1` по высоте экрана,
+    места игроков — якоря в долях картинки (`SeatUV`).
 - `Assets/PokerClient/Editor/` — вне asmdef, компилируется в `Assembly-CSharp-Editor`, это нормально:
   `BuildTools.cs` (`BuildAndroid`/`BuildIos`) и `DiscoPokerUiTexturePostprocessor.cs` (импорт PNG под `Art/UI/` как uGUI-спрайты).
 - `Assets/PokerClient/Tests/EditMode/` — NUnit-тесты модели.
@@ -26,6 +27,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
     `Animations/Balls/` (кадры диско-шара). **Карт и фишек в нём нет.**
     Файлы не переименовывать; ключи для кода — `id` из `UI/Documentation/ui-assets.json`;
     у многих PNG запечён текст/цифры — список в `UI/Documentation/README.md`, брать `*empty*`/`without_UI` варианты.
+    `UI/Locations/Location01..03/Tables/` — рендеры покерных столов (вид сверху, 1672×941, 5 кресел — стол 5-max и на сервере), выгружены
+    из Figma (`figma.com/design/hULeSpuZvTsyODA1jnZWJd`, мудборд без фреймов; локация 04 и остальное — там же).
 - `Assets/PokerClient/Prefabs/` — пусто; префабы — когда будут спрайты карт.
 - `Assets/Scenes/SampleScene.unity` — единственная сцена.
 - `game/` — сервер (FastAPI, Python 3.11+): `app/core/` — синхронное ядро без сети и asyncio (`game.py` движок раздачи,
@@ -83,7 +86,7 @@ Joining → AtTable`, плюс `Reconnecting`. В `AtTable` переходим �
 - **`board` из `street` рисовать целиком**, а не накапливать по карте.
 - **Рейт-лимит 20 сообщений/с.** Ход отправлять один раз и блокировать кнопки; `ping` — раз в 10–15 с, не из `Update`.
 - **Любое расхождение лечится `request_snapshot`**, а не ручной починкой UI. Так же реагировать на `invalid_action` / `not_your_turn`.
-- **`seat_no` (0–5) ≠ экранная позиция.** Своё место всегда снизу; нужна отдельная функция пересчёта.
+- **`seat_no` (0–4) ≠ экранная позиция.** Своё место всегда снизу; нужна отдельная функция пересчёта.
 
 ## Подключение и токен
 
@@ -142,7 +145,7 @@ minSdk 26, iOS 15. Bundle id `com.discopoker.client` — заглушка, см�
   библиотека AppUI (тянется через `com.unity.ai.assistant`) собрана только под устройство, а зовётся при старте плеера.
   `iOSSimulatorArchitecture: 1` (arm64) в ProjectSettings — иначе Unity кладёт x86_64-рантайм.
 - Сервер для проверки: `game/scripts/run_local.sh` (сам создаст `.venv`, Postgres/Redis не нужны — работает в памяти),
-  боты `python3 game/scripts/bot_client.py --bots 5 --hands 50 --stake low` (5, а не 6 — чтобы осталось место клиенту).
+  боты `python3 game/scripts/bot_client.py --bots 4 --hands 50 --stake low` (4, а не 5 — чтобы осталось место клиенту).
   `curl localhost:8000/health` — жив ли; `http://localhost:8000/docs` — Swagger.
   Телефон подключается по LAN-адресу мака (`ipconfig getifaddr en0`), порт 8000, поле «Сервер» в лобби.
 - Unity MCP: relay зарегистрирован в Claude Code как `unity-mcp` (user scope).

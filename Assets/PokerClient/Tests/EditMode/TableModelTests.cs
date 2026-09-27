@@ -6,7 +6,7 @@ namespace PokerClient.Tests
     public class TableModelTests
     {
         const string Snapshot = @"{
-          ""table"": {""table_id"": ""low-a1b2"", ""stake"": {""code"": ""low""}, ""max_seats"": 6,
+          ""table"": {""table_id"": ""low-a1b2"", ""stake"": {""code"": ""low""}, ""max_seats"": 5,
                       ""state"": ""hand_in_progress"", ""button_seat"": 2, ""hand_no"": 41},
           ""seats"": [
             {""seat_no"": 0, ""player_id"": ""p0"", ""nickname"": ""Женя"", ""stack"": 940, ""state"": ""in_hand"",
@@ -28,7 +28,7 @@ namespace PokerClient.Tests
         public void Snapshot_ReplacesWholeState()
         {
             var m = new TableModel();
-            m.Seats[5].PlayerId = "stale";
+            m.Seats[4].PlayerId = "stale";
 
             m.ApplySnapshot(JObject.Parse(Snapshot));
 
@@ -41,7 +41,7 @@ namespace PokerClient.Tests
             Assert.AreEqual(2, m.Options.Count);
             Assert.AreEqual(40, m.Options[1].Min);
             Assert.AreEqual(1786000012.4, m.DeadlineTs, 0.001);
-            Assert.IsFalse(m.Seats[5].Occupied, "снимок — полное состояние, старое место должно исчезнуть");
+            Assert.IsFalse(m.Seats[4].Occupied, "снимок — полное состояние, старое место должно исчезнуть");
             Assert.IsFalse(m.Seats[1].Occupied);
             Assert.AreEqual("Бот-3", m.Seats[3].Nickname);
         }
@@ -88,9 +88,9 @@ namespace PokerClient.Tests
         public void ScreenPos_PutsMeAtBottomAndOthersClockwise()
         {
             Assert.AreEqual(0, TableModel.ScreenPos(4, 4));
-            Assert.AreEqual(1, TableModel.ScreenPos(5, 4));
-            Assert.AreEqual(2, TableModel.ScreenPos(0, 4));
-            Assert.AreEqual(5, TableModel.ScreenPos(3, 4));
+            Assert.AreEqual(1, TableModel.ScreenPos(0, 4));
+            Assert.AreEqual(2, TableModel.ScreenPos(1, 4));
+            Assert.AreEqual(4, TableModel.ScreenPos(3, 4));
             Assert.AreEqual(2, TableModel.ScreenPos(2, -1), "без своего места — как есть");
         }
     }
