@@ -108,6 +108,29 @@ namespace PokerClient.Tests
         }
 
         [Test]
+        public void HandFinished_MarksWinnerWithBestFive_UntilNextHand()
+        {
+            var m = new TableModel();
+            m.Seats[1].PlayerId = "p1";
+            m.Seats[3].PlayerId = "p3";
+
+            m.Apply("showdown", JObject.Parse(@"{""hands"": [
+                {""seat_no"": 1, ""cards"": [""Ah"", ""Kh""], ""combination"": ""Флеш"", ""best_five"": [""Ah"", ""Kh"", ""9h"", ""5h"", ""2h""]},
+                {""seat_no"": 3, ""cards"": [""Qs"", ""Qd""], ""combination"": ""Пара"", ""best_five"": [""Qs"", ""Qd"", ""9h"", ""7c"", ""5h""]}]}"));
+            m.Apply("hand_finished", JObject.Parse(@"{""total_pot"": 200, ""winners"": [{""seat_no"": 1, ""amount"": 200}]}"));
+
+            Assert.IsTrue(m.Seats[1].Winner);
+            Assert.IsFalse(m.Seats[3].Winner);
+            Assert.AreEqual(new[] { "Ah", "Kh", "9h", "5h", "2h" }, m.Seats[1].BestFive);
+            Assert.AreEqual(1, m.FinishNo);
+
+            m.Apply("hand_started", JObject.Parse(@"{""hand_id"": ""h2"", ""players"": [{""seat_no"": 1}, {""seat_no"": 3}]}"));
+
+            Assert.IsFalse(m.Seats[1].Winner);
+            Assert.IsNull(m.Seats[1].BestFive);
+        }
+
+        [Test]
         public void ScreenPos_PutsMeAtBottomAndOthersClockwise()
         {
             Assert.AreEqual(0, TableModel.ScreenPos(4, 4));

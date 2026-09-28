@@ -11,6 +11,9 @@ namespace PokerClient
         public long Stack, Bet;
         public bool Connected = true, SittingOut, HasCards;
         public List<string> ShownCards;
+        /// <summary>Пять карт комбинации из <c>showdown</c> (свои + стол); null — вскрытия не было.</summary>
+        public List<string> BestFive;
+        public bool Winner;
 
         public bool Occupied => !string.IsNullOrEmpty(PlayerId);
 
@@ -33,8 +36,8 @@ namespace PokerClient
             Stack = Bet = 0;
             State = LastAction = "";
             Connected = true;
-            SittingOut = HasCards = false;
-            ShownCards = null;
+            SittingOut = HasCards = Winner = false;
+            ShownCards = BestFive = null;
         }
     }
 
@@ -71,6 +74,8 @@ namespace PokerClient
         /// <summary>Порядок мест из <c>cards_dealt</c> — только для анимации; <see cref="DealNo"/> растёт с каждой раздачей.</summary>
         public readonly List<int> DealOrder = new();
         public int DealNo;
+        /// <summary>Растёт с каждым <c>hand_finished</c> — старт анимации победителя.</summary>
+        public int FinishNo;
         public long Balance;
 
         /// <summary>Последнее событие словами — для строки статуса.</summary>
@@ -180,8 +185,8 @@ namespace PokerClient
                     {
                         s.Bet = 0;
                         s.LastAction = "";
-                        s.ShownCards = null;
-                        s.HasCards = false;
+                        s.ShownCards = s.BestFive = null;
+                        s.HasCards = s.Winner = false;
                     }
                     if (d["players"] is JArray players)
                         foreach (var p in players)
@@ -276,6 +281,8 @@ namespace PokerClient
                             {
                                 shown.ShownCards = new List<string>();
                                 SetCards(shown.ShownCards, ho["cards"]);
+                                shown.BestFive = new List<string>();
+                                SetCards(shown.BestFive, ho["best_five"]);
                                 shown.LastAction = ho.Value<string>("combination") ?? "";
                             }
                     break;
@@ -296,8 +303,10 @@ namespace PokerClient
                             {
                                 var amount = wo.Value<long?>("amount") ?? 0;
                                 win.LastAction = $"+{amount}";
+                                win.Winner = true;
                                 names.Add($"{win.Nickname} +{amount}");
                             }
+                    FinishNo++;
                     Status = names.Count > 0 ? "Выиграл: " + string.Join(", ", names) : "Раздача окончена";
                     break;
 

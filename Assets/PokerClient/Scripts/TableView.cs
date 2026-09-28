@@ -85,12 +85,13 @@ namespace PokerClient
             public GameObject Go;
             public Image Bg;
             public TMP_Text Corner, Pip;
+            public Image Frame; // подсветка карты из выигрышной комбинации
         }
 
         PokerSession _s;
         TMP_FontAsset _font;
         bool _suitGlyphs;
-        Sprite _rounded;
+        Sprite _rounded, _ring;
 
         GameObject _lobby, _table, _loading;
         Image _ball;
@@ -109,6 +110,7 @@ namespace PokerClient
         readonly TMP_Text[] _seatText = new TMP_Text[TableModel.MaxSeats];
         readonly RectTransform[] _seatRt = new RectTransform[TableModel.MaxSeats];
         readonly Image[] _seatBg = new Image[TableModel.MaxSeats];
+        readonly Image[] _seatFrame = new Image[TableModel.MaxSeats];
         readonly CardSlot[][] _seatCards = new CardSlot[TableModel.MaxSeats][];
         readonly CardSlot[] _board = new CardSlot[5];
         readonly CardSlot[] _myCards = new CardSlot[2];
@@ -122,6 +124,14 @@ namespace PokerClient
         RectTransform _dealFrom;
         int _dealNo;
         float _dealStart = -1f;
+        // победитель: карты переворачиваются лицом (если было вскрытие) и плавно растут; рамки места и карт комбинации пульсируют
+        const float SeatCardY = 95f;
+        static readonly Vector2 SeatCardSize = new(48, 68);
+        const float FlipTime = 0.4f, GrowTime = 0.5f, WinScale = 1.5f, WinScaleMine = 1.2f;
+        readonly HashSet<string> _winCards = new(); // best_five победителей — какие карты подсвечивать
+        readonly List<Image> _frames = new();
+        int _finishNo;
+        float _winStart = -1f;
         GameObject _sliderRow;
         Slider _slider;
         string _sliderPrefix = "";
@@ -139,6 +149,7 @@ namespace PokerClient
             // ♠♥♦♣ нет в статическом атласе, но есть в динамическом fallback-шрифте — искать и там
             _suitGlyphs = _font.HasCharacter('♠', true, true) && _font.HasCharacter('♥', true, true);
             _rounded = MakeRoundedSprite(16);
+            _ring = MakeRoundedSprite(16, 5);
             Build();
         }
 
@@ -155,7 +166,11 @@ namespace PokerClient
             }
             UpdateTimer();
             if (_lobby.activeSelf) UpdateHudRow();
-            if (_table.activeSelf) UpdateDeal();
+            if (_table.activeSelf)
+            {
+                UpdateWin(); // до раздачи: сброс масштаба победителя не должен перебить скрытие слотов новой раздачей
+                UpdateDeal();
+            }
             else if (_dealStart >= 0) EndDeal();
             if (_loading.activeSelf && _ballFrames != null && _ballFrames.Length > 0)
                 _ball.sprite = _ballFrames[(int)(Time.unscaledTime * BallFps) % _ballFrames.Length];
@@ -196,6 +211,9 @@ namespace PokerClient
             }
 
             _header.text = $"Стол {m.TableId}   ставки: {m.Stake}   баланс: {m.Balance}";
+            _winCards.Clear();
+            foreach (var s in m.Seats)
+                if (s.Winner && s.BestFive != null) _winCards.UnionWith(s.BestFive);
             for (var i = 0; i < _board.Length; i++) SetCard(_board[i], i < m.Board.Count ? m.Board[i] : null);
             for (var i = 0; i < _myCards.Length; i++) SetCard(_myCards[i], i < m.HoleCards.Count ? m.HoleCards[i] : null);
             _pot.text = $"Банк: {m.Pot}";
@@ -213,6 +231,7 @@ namespace PokerClient
                     text.text = "<alpha=#60>пусто";
                     text.alpha = 1f;
                     bg.color = Panel;
+                    _seatFrame[pos].gameObject.SetActive(false);
                     SetCard(cards[0], null);
                     SetCard(cards[1], null);
                     continue;
@@ -230,12 +249,13 @@ namespace PokerClient
                 text.text = sb.ToString();
                 text.alpha = folded ? 0.45f : 1f;
                 bg.color = i == m.ToAct ? PanelActive : Panel;
+                _seatFrame[pos].gameObject.SetActive(s.Winner);
 
-                // свои карты — отдельно и крупно, у других: вскрытые или рубашки
+                // свои карты — отдельно и крупно, у других — рубашки; лицом только у победителя, если было вскрытие
                 string c0 = null, c1 = null;
                 if (i != m.MySeat && !folded)
                 {
-                    if (s.ShownCards != null && s.ShownCards.Count >= 2) { c0 = s.ShownCards[0]; c1 = s.ShownCards[1]; }
+                    if (s.Winner && s.ShownCards is { Count: >= 2 }) { c0 = s.ShownCards[0]; c1 = s.ShownCards[1]; }
                     else if (s.HasCards) c0 = c1 = "back";
                 }
                 SetCard(cards[0], c0);
@@ -321,6 +341,61 @@ namespace PokerClient
             if (!flying) _dealStart = -1f;
         }
 
+        void UpdateWin()
+        {
+            var m = _s.Model;
+            if (m.FinishNo != _finishNo)
+            {
+                _finishNo = m.FinishNo;
+                _winStart = Time.unscaledTime;
+            }
+            if (_winStart < 0) return;
+
+            var t = Time.unscaledTime - _winStart;
+            var any = false;
+            for (var i = 0; i < TableModel.MaxSeats; i++)
+            {
+                var s = m.Seats[i];
+                if (!s.Winner) continue;
+                any = true;
+                var mine = i == m.MySeat;
+                var pos = TableModel.ScreenPos(i, m.MySeat);
+                var slots = mine ? _myCards : _seatCards[pos];
+                // чужие карты сервер присылает только при вскрытии; без него (все сбросили) — растут рубашки
+                var flip = !mine && s.ShownCards is { Count: >= 2 };
+                var f = flip ? Mathf.Clamp01(t / FlipTime) : 1f;
+                var grow = Mathf.SmoothStep(1f, mine ? WinScaleMine : WinScale, (t - (flip ? FlipTime : 0f)) / GrowTime);
+                // у верхних мест карты у самого края экрана — растут вниз, верхняя кромка стоит
+                var top = !mine && SeatUV[pos].y < 0.3f;
+                for (var c = 0; c < slots.Length; c++)
+                {
+                    if (flip) SetCard(slots[c], f < 0.5f ? "back" : s.ShownCards[c]);
+                    var sx = flip ? Mathf.Abs(1f - 2f * f) : 1f; // сжатие по X до ребра и обратно — переворот
+                    var rt = (RectTransform)slots[c].Go.transform;
+                    rt.localScale = new Vector3(grow * sx, grow, 1f);
+                    if (top) rt.anchoredPosition = new Vector2(rt.anchoredPosition.x, SeatCardY - (grow - 1f) * SeatCardSize.y / 2f);
+                }
+            }
+
+            if (!any)
+            {
+                // новая раздача или ушли со стола — вернуть размер
+                _winStart = -1f;
+                foreach (var c in _myCards) c.Go.transform.localScale = Vector3.one;
+                foreach (var seat in _seatCards)
+                foreach (var c in seat)
+                {
+                    var rt = (RectTransform)c.Go.transform;
+                    rt.localScale = Vector3.one;
+                    rt.anchoredPosition = new Vector2(rt.anchoredPosition.x, SeatCardY);
+                }
+                return;
+            }
+            var pulse = new Color(Gold.r, Gold.g, Gold.b, 0.65f + 0.35f * Mathf.Sin(t * 6f));
+            foreach (var frame in _frames)
+                if (frame.gameObject.activeInHierarchy) frame.color = pulse;
+        }
+
         // ушли со стола посреди анимации — вернуть слоты, иначе карты останутся невидимыми до следующей раздачи
         void EndDeal()
         {
@@ -362,6 +437,7 @@ namespace PokerClient
         {
             slot.Go.SetActive(code != null);
             if (code == null) return;
+            slot.Frame.gameObject.SetActive(_winCards.Contains(code));
             if (code == "back" || code.Length < 2)
             {
                 slot.Bg.color = CardBack;
@@ -381,6 +457,20 @@ namespace PokerClient
             slot.Pip.color = color;
         }
 
+        /// <summary>Золотая рамка поверх элемента, выключена; включает Redraw у победителя.</summary>
+        Image MakeFrame(RectTransform parent)
+        {
+            var rt = Stretch(parent, "Frame");
+            rt.offsetMin = new Vector2(-6, -6);
+            rt.offsetMax = new Vector2(6, 6);
+            var img = MakePanel(rt, Gold);
+            img.sprite = _ring;
+            img.raycastTarget = false;
+            rt.gameObject.SetActive(false);
+            _frames.Add(img);
+            return img;
+        }
+
         CardSlot MakeCard(Transform parent, Vector2 pos, Vector2 size, Vector2? anchor = null)
         {
             var rt = Box(parent, "Card", pos, size, anchor);
@@ -390,6 +480,7 @@ namespace PokerClient
             slot.Corner.lineSpacing = -20;
             slot.Pip = AddText(Stretch(rt, "Pip"), size.y * 0.5f, TextAlignmentOptions.BottomRight, CardBlack);
             slot.Pip.margin = new Vector4(0, 0, size.x * 0.08f, size.y * 0.02f);
+            slot.Frame = MakeFrame(rt);
             rt.gameObject.SetActive(false);
             return slot;
         }
@@ -600,11 +691,11 @@ namespace PokerClient
                 _seatRt[i] = seat;
                 _seatBg[i] = MakePanel(seat, Panel);
                 _seatText[i] = AddText(Stretch(seat, "Text"), 26, TextAlignmentOptions.Center);
-                var small = new Vector2(48, 68);
+                _seatFrame[i] = MakeFrame(seat);
                 _seatCards[i] = new[]
                 {
-                    MakeCard(seat, new Vector2(-30, 95), small),
-                    MakeCard(seat, new Vector2(30, 95), small),
+                    MakeCard(seat, new Vector2(-30, SeatCardY), SeatCardSize),
+                    MakeCard(seat, new Vector2(30, SeatCardY), SeatCardSize),
                 };
             }
             _timer = AddText(Box(t, "Timer", new Vector2(-12, -6), new Vector2(80, 44), new Vector2(1f, 1f)), 34, TextAlignmentOptions.Right, Gold);
@@ -775,7 +866,8 @@ namespace PokerClient
             return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
         }
 
-        static Sprite MakeRoundedSprite(int radius)
+        /// <summary><paramref name="ring"/> &gt; 0 — только кромка такой толщины (рамка), середина прозрачная.</summary>
+        static Sprite MakeRoundedSprite(int radius, int ring = 0)
         {
             var size = radius * 2 + 2;
             var tex = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
@@ -786,7 +878,9 @@ namespace PokerClient
                 // расстояние от пикселя до ближайшего центра скругления; внутри — 1, на кромке — сглаживание
                 var dx = Mathf.Max(radius - x - 0.5f, x + 0.5f - (size - radius), 0f);
                 var dy = Mathf.Max(radius - y - 0.5f, y + 0.5f - (size - radius), 0f);
-                var a = Mathf.Clamp01(radius + 0.5f - Mathf.Sqrt(dx * dx + dy * dy));
+                var d = Mathf.Sqrt(dx * dx + dy * dy);
+                var a = Mathf.Clamp01(radius + 0.5f - d);
+                if (ring > 0) a *= 1f - Mathf.Clamp01(radius - ring + 0.5f - d);
                 px[y * size + x] = new Color32(255, 255, 255, (byte)(a * 255));
             }
             tex.SetPixels32(px);
