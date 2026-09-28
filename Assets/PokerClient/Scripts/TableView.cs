@@ -29,6 +29,14 @@ namespace PokerClient
         [SerializeField] Sprite _hudBar;            // HUD/hud_top_background_empty
         [SerializeField] Sprite _currencyPanel;     // HUD/02_currency_empty-transparent
         [SerializeField] Sprite _avatar;            // HUD/03_player_avatar
+        [SerializeField] Sprite _homeButton;        // HUD/01_home_button
+        [SerializeField] Sprite _levelPanel;        // HUD/04_level_empty-transparent
+        [SerializeField] Sprite _shopButton;        // HUD/05_shop_button
+        [SerializeField] Sprite _starBadge;         // HUD/06_star_badge
+        [SerializeField] Sprite _safeButton;        // HUD/07_safe_button
+        [SerializeField] Sprite _bagButton;         // HUD/08_bag_button
+        [SerializeField] Sprite _friendsButton;     // HUD/09_friends_button
+        [SerializeField] Sprite _menuButton;        // HUD/10_menu_button
         [SerializeField] Sprite _activePanel;       // Map/active-table-panel-americana-80s
         [SerializeField] Sprite _lockPanel;         // Map/table3-lock-panel-transparent
         // ponytail: прогресс игрока сервер не присылает — уровень и число открытых локаций пока задаются в инспекторе
@@ -89,9 +97,11 @@ namespace PokerClient
         TMP_Text _loadingLabel;
         TMP_InputField _login, _password;
         GameObject _connectPanel;
-        RectTransform _map, _tables;
+        RectTransform _mapBackdrop, _map, _tables;
+        readonly Dictionary<Sprite, Sprite> _blurred = new(); // размытые копии фонов для подложки
         TMP_Text _hudNick, _hudBalance;
         Button _prevLoc, _nextLoc;
+        GameObject _menu; // выпадашка под «три точки»: пока только «Выйти»
         readonly List<Button> _tableButtons = new();
         int _location;
 
@@ -167,6 +177,7 @@ namespace PokerClient
                 _connectPanel.SetActive(st == ClientState.Disconnected);
                 _login.interactable = _password.interactable = st == ClientState.Disconnected;
                 _hudNick.text = _s.Nickname;
+                if (st != ClientState.Authorized) _menu.SetActive(false);
                 _hudBalance.text = st == ClientState.Authorized ? Chips(m.Balance) : "—";
                 foreach (var b in _tableButtons) b.interactable = st == ClientState.Authorized;
                 return;
@@ -352,24 +363,48 @@ namespace PokerClient
         {
             _lobby = Stretch(root, "Lobby").gameObject;
             var t = _lobby.transform;
-            _map = MakeCover(t, null, Night); // спрайт локации ставит ShowLocation
+            // карта целиком по высоте экрана, чтобы все столы были видны; боковые поля на 20:9 закрывает
+            // сильно размытая копия той же картинки (резкая копия читалась как дубль краёв). Спрайты ставит ShowLocation.
+            _mapBackdrop = MakeCover(t, null, Night);
+            MakePanel(Stretch(t, "Dim"), new Color(0, 0, 0, 0.35f));
+            _map = Stretch(t, "Map");
+            MakeImage(_map, null, Night);
+            _map.gameObject.AddComponent<AspectRatioFitter>().aspectMode = AspectRatioFitter.AspectMode.FitInParent;
             _tables = Stretch(_map, "Tables");
 
             _prevLoc = MakeButton(t, "‹", new Vector2(24, 0), new Vector2(80, 160), () => ShowLocation(_location - 1), Panel, new Vector2(0f, 0.5f));
             _nextLoc = MakeButton(t, "›", new Vector2(-24, 0), new Vector2(80, 160), () => ShowLocation(_location + 1), Panel, new Vector2(1f, 0.5f));
 
-            // HUD сверху: аватар, ник, баланс, выход
+            // HUD сверху по макету W UI: домой, баланс, аватар, (ник — наш), уровень | магазин | звезда, сейф, сумка, друзья, меню.
+            // ponytail: магазин, звезда, сейф, сумка, друзья — картинки без действия, на сервере этих фич нет.
             var hud = Stretch(t, "Hud");
             hud.anchorMin = new Vector2(0, 1);
             hud.pivot = new Vector2(0.5f, 1f);
             hud.sizeDelta = new Vector2(0, 96);
             MakeImage(hud, _hudBar, Panel);
-            MakeImage(Box(hud, "Avatar", new Vector2(24, 0), new Vector2(80, 80), new Vector2(0f, 0.5f)), _avatar, Magenta);
-            _hudNick = AddText(Box(hud, "Nick", new Vector2(116, 0), new Vector2(260, 60), new Vector2(0f, 0.5f)), 30, TextAlignmentOptions.Left, Gold);
-            var currency = Box(hud, "Currency", new Vector2(390, 0), new Vector2(232, 90), new Vector2(0f, 0.5f));
+            var left = new Vector2(0f, 0.5f);
+            var right = new Vector2(1f, 0.5f);
+            SpriteButton(hud, "Home", new Vector2(24, 0), new Vector2(76, 70), left, _homeButton, () => ShowLocation(0));
+            var currency = Box(hud, "Currency", new Vector2(116, 0), new Vector2(232, 90), left);
             MakeImage(currency, _currencyPanel, Panel);
             _hudBalance = AddText(Box(currency, "Balance", new Vector2(30, 2), new Vector2(150, 60)), 30, TextAlignmentOptions.Right, Gold);
-            MakeButton(hud, "Выйти", new Vector2(-24, 0), new Vector2(170, 64), _s.Disconnect, Grey, new Vector2(1f, 0.5f));
+            MakeImage(Box(hud, "Avatar", new Vector2(366, 0), new Vector2(80, 80), left), _avatar, Magenta);
+            _hudNick = AddText(Box(hud, "Nick", new Vector2(460, 0), new Vector2(200, 60), left), 30, TextAlignmentOptions.Left, Gold);
+            var level = Box(hud, "Level", new Vector2(676, 0), new Vector2(160, 70), left);
+            MakeImage(level, _levelPanel, Panel).preserveAspect = true;
+            AddText(Box(level, "Value", new Vector2(24, 2), new Vector2(90, 56)), 30, TextAlignmentOptions.Center, Gold).text = _playerLevel.ToString();
+            MakeImage(Box(hud, "Shop", Vector2.zero, new Vector2(200, 88)), _shopButton, Panel).preserveAspect = true;
+            MakeImage(Box(hud, "Star", new Vector2(-392, 0), new Vector2(76, 76), right), _starBadge, Panel).preserveAspect = true;
+            MakeImage(Box(hud, "Safe", new Vector2(-282, 0), new Vector2(90, 75), right), _safeButton, Panel).preserveAspect = true;
+            MakeImage(Box(hud, "Bag", new Vector2(-170, 0), new Vector2(92, 73), right), _bagButton, Panel).preserveAspect = true;
+            MakeImage(Box(hud, "Friends", new Vector2(-72, 0), new Vector2(78, 78), right), _friendsButton, Panel).preserveAspect = true;
+            SpriteButton(hud, "Menu", new Vector2(-24, 0), new Vector2(28, 78), right, _menuButton, () => _menu.SetActive(!_menu.activeSelf));
+
+            var menu = Box(t, "Menu", new Vector2(-24, -104), new Vector2(220, 84), new Vector2(1f, 1f));
+            MakePanel(menu, Panel);
+            MakeButton(menu, "Выйти", Vector2.zero, new Vector2(196, 64), () => { _menu.SetActive(false); _s.Disconnect(); }, Grey);
+            _menu = menu.gameObject;
+            _menu.SetActive(false);
 
             // экран подключения на фоне заставки (как экран загрузки), только в Disconnected; карта — после авторизации
             _connectPanel = Stretch(t, "Connect").gameObject;
@@ -395,10 +430,14 @@ namespace PokerClient
             if (_locations == null || _locations.Length == 0) return;
             _location = Mathf.Clamp(idx, 0, Mathf.Min(_locations.Length, TableRects.Length) - 1);
             var art = _locations[_location];
-            var cover = _map.GetComponent<Image>();
-            cover.sprite = art.Background;
-            cover.color = art.Background != null ? Color.white : Night;
-            if (art.Background != null) _map.GetComponent<AspectRatioFitter>().aspectRatio = art.Background.rect.width / art.Background.rect.height;
+            if (art.Background != null && !_blurred.ContainsKey(art.Background)) _blurred[art.Background] = MakeBlurred(art.Background);
+            foreach (var (rt, sprite) in new[] { (_mapBackdrop, art.Background != null ? _blurred[art.Background] : null), (_map, art.Background) })
+            {
+                var img = rt.GetComponent<Image>();
+                img.sprite = sprite;
+                img.color = sprite != null ? Color.white : Night;
+                if (art.Background != null) rt.GetComponent<AspectRatioFitter>().aspectRatio = art.Background.rect.width / art.Background.rect.height;
+            }
 
             foreach (Transform c in _tables) Destroy(c.gameObject);
             _tableButtons.Clear();
@@ -419,16 +458,16 @@ namespace PokerClient
 
                 if (locked)
                 {
-                    var lockRt = Box(spot, "Lock", Vector2.zero, new Vector2(240, 168));
+                    var lockRt = Box(spot, "Lock", Vector2.zero, new Vector2(170, 119));
                     MakeImage(lockRt, _lockPanel, PanelActive);
-                    AddText(Stretch(lockRt, "Text"), 26, TextAlignmentOptions.Center, Cyan).text = $"СТОЛ {i + 1}\n\n\nУРОВЕНЬ {level}";
+                    AddText(Stretch(lockRt, "Text"), 19, TextAlignmentOptions.Center, Cyan).text = $"СТОЛ {i + 1}\n\n\nУРОВЕНЬ {level}";
                     continue;
                 }
 
-                var name = Box(spot, "Name", new Vector2(0, 58), new Vector2(340, 80));
+                var name = Box(spot, "Name", new Vector2(0, 40), new Vector2(240, 56));
                 name.pivot = new Vector2(0.5f, 0f);
                 MakeImage(name, At(art.Names, i), Color.clear).preserveAspect = true;
-                var panelImg = MakeImage(Box(spot, "Panel", Vector2.zero, new Vector2(300, 101)), _activePanel, PanelActive);
+                var panelImg = MakeImage(Box(spot, "Panel", Vector2.zero, new Vector2(210, 71)), _activePanel, PanelActive);
                 var stake = TableStakes[Mathf.Min(i, TableStakes.Length - 1)];
                 var button = spot.gameObject.AddComponent<Button>();
                 button.targetGraphic = panelImg;
@@ -565,6 +604,18 @@ namespace PokerClient
             return text;
         }
 
+        Button SpriteButton(Transform parent, string name, Vector2 pos, Vector2 size, Vector2 anchor, Sprite sprite, UnityAction onClick)
+        {
+            var rt = Box(parent, name, pos, size, anchor);
+            var img = MakeImage(rt, sprite, Panel);
+            img.preserveAspect = true;
+            img.raycastTarget = true; // MakeImage выключает клики: картинки декоративные, а это кнопка
+            var button = rt.gameObject.AddComponent<Button>();
+            button.targetGraphic = img;
+            button.onClick.AddListener(onClick);
+            return button;
+        }
+
         Button MakeButton(Transform parent, string label, Vector2 pos, Vector2 size, UnityAction onClick, Color? color = null, Vector2? anchor = null)
         {
             var rt = Box(parent, "Button " + label, pos, size, anchor);
@@ -612,6 +663,29 @@ namespace PokerClient
         }
 
         /// <summary>Белый квадрат со скруглёнными углами под 9-slice: один спрайт на все панели, кнопки и карты.</summary>
+        /// <summary>Сильно размытая копия спрайта: уменьшаем вдвое на GPU до ~50 px (текстуры нечитаемые и без мипмапов),
+        /// обратно растягивает билинейный фильтр. Для подложки под карту, где детали только мешают.</summary>
+        static Sprite MakeBlurred(Sprite src)
+        {
+            var cur = RenderTexture.GetTemporary(src.texture.width, src.texture.height, 0);
+            Graphics.Blit(src.texture, cur);
+            while (cur.width > 64)
+            {
+                var next = RenderTexture.GetTemporary(cur.width / 2, cur.height / 2, 0);
+                Graphics.Blit(cur, next);
+                RenderTexture.ReleaseTemporary(cur);
+                cur = next;
+            }
+            var prev = RenderTexture.active;
+            RenderTexture.active = cur;
+            var tex = new Texture2D(cur.width, cur.height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+            tex.ReadPixels(new Rect(0, 0, cur.width, cur.height), 0, 0);
+            tex.Apply();
+            RenderTexture.active = prev;
+            RenderTexture.ReleaseTemporary(cur);
+            return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+        }
+
         static Sprite MakeRoundedSprite(int radius)
         {
             var size = radius * 2 + 2;

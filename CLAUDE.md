@@ -17,7 +17,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
     `[SerializeField]` с объекта `Poker` в `SampleScene` (там же висит `PokerSession`; бутстрапа из кода нет).
     Карты рисуются программно (белый скруглённый спрайт генерируется в `MakeRoundedSprite`), экран загрузки —
     фон `Loading/` + кадры шара из `Animations/Balls/`, стол — рендер `Locations/Location01/Tables/table_1` по высоте экрана,
-    места игроков — якоря в долях картинки (`SeatUV`).
+    места игроков — якоря в долях картинки (`SeatUV`). Лобби: верхняя панель по макету `Locations/Location01/Backgrounds/W UI.png`
+    (спрайты из `HUD/`), карта локации целиком по высоте, поля по бокам — размытая копия фона (`MakeBlurred`, `Graphics.Blit`),
+    столы — прямоугольники в долях фона (`TableRects`). `MakeImage` ставит `raycastTarget=false`; кнопка из спрайта — `SpriteButton`.
 - `Assets/PokerClient/Editor/` — вне asmdef, компилируется в `Assembly-CSharp-Editor`, это нормально:
   `BuildTools.cs` (`BuildAndroid`/`BuildIos`) и `DiscoPokerUiTexturePostprocessor.cs` (импорт PNG под `Art/UI/` как uGUI-спрайты).
 - `Assets/PokerClient/Tests/EditMode/` — NUnit-тесты модели.
@@ -34,7 +36,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `game/` — сервер (FastAPI, Python 3.11+): `app/core/` — синхронное ядро без сети и asyncio (`game.py` движок раздачи,
   `pot.py`, `hand_eval.py`, `deck_provider.py`); `app/services/` — `registry.py` (реестр столов, `quick_join`),
   `table.py` (стол-актор, по asyncio-задаче на стол), `hub.py` (player_id → живой сокет); `app/api/ws.py` эндпоинт `/ws`,
-  `app/api/http.py` (`/auth/guest`, `/health`); `app/protocol/messages.py` схема сообщений. Без Postgres/Redis работает в памяти.
+  `app/api/http.py` (`/auth/register|login|refresh|guest`, `/health`); `app/auth/` — `tokens.py` (JWT, `SessionStore` отзыва),
+  `users.py` (логины, scrypt); `app/protocol/messages.py` схема сообщений. Без Postgres/Redis работает в памяти.
   **Справочник протокола: `game/docs/PROTOCOL.md`, требования к клиенту: `game/docs/CLIENT_NETWORKING.md`,
   устройство сервера: `game/docs/ARCHITECTURE.md`** — при любом вопросе «какое поле/какое сообщение» смотреть туда, не угадывать.
 
@@ -166,7 +169,7 @@ minSdk 26, iOS 15. Bundle id `com.discopoker.client` — заглушка, см�
 - Сервер для проверки: `game/scripts/run_local.sh` (сам создаст `.venv`, Postgres/Redis не нужны — работает в памяти),
   боты `python3 game/scripts/bot_client.py --bots 4 --hands 50 --stake low` (4, а не 5 — чтобы осталось место клиенту).
   `curl localhost:8000/health` — жив ли; `http://localhost:8000/docs` — Swagger.
-  Телефон подключается по LAN-адресу мака (`ipconfig getifaddr en0`), порт 8000, поле «Сервер» в лобби.
+  Телефон подключается по LAN-адресу мака, зашитому в `PokerSession.Awake` (поля «Сервер» в UI нет, см. выше).
 - Unity MCP: relay зарегистрирован в Claude Code как `unity-mcp` (user scope).
   Первое подключение подтверждать в Editor → Project Settings → AI → Unity MCP Server.
 

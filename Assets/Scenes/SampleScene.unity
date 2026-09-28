@@ -442,6 +442,14 @@ MonoBehaviour:
   _hudBar: {fileID: 21300000, guid: 7ceef1bc00aea9148bdfd29f7ef71098, type: 3}
   _currencyPanel: {fileID: 21300000, guid: ed5936c60cbef664692b278a2be9e516, type: 3}
   _avatar: {fileID: 21300000, guid: 2709dcd806e63f5409b41bc912581aa4, type: 3}
+  _homeButton: {fileID: 21300000, guid: a5c5276f7aafc6045b3de40202a60b95, type: 3}
+  _levelPanel: {fileID: 21300000, guid: de79656ab83b1804391c41b7626ad4f2, type: 3}
+  _shopButton: {fileID: 21300000, guid: 97d9ce01474410b4b8abf47b5b4096c7, type: 3}
+  _starBadge: {fileID: 21300000, guid: fa28283d78bb02f44a8e47a29c738cea, type: 3}
+  _safeButton: {fileID: 21300000, guid: cf5295cd4db50a340bcfb465f9aa6f6c, type: 3}
+  _bagButton: {fileID: 21300000, guid: c4a6ee256fff2974ca2912f2a89f1f81, type: 3}
+  _friendsButton: {fileID: 21300000, guid: 26689da4cdf27e54ab37860083e95b18, type: 3}
+  _menuButton: {fileID: 21300000, guid: 89789a4db92bbfb4885582b2ae97799f, type: 3}
   _activePanel: {fileID: 21300000, guid: 8261f49dc114f5a458a13df61affcc70, type: 3}
   _lockPanel: {fileID: 21300000, guid: 16feffb66f4bf4d4fb23ae6ae80cd7f9, type: 3}
   _unlockedLocations: 3
