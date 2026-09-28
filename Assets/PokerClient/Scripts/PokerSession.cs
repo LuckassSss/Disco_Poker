@@ -45,7 +45,9 @@ namespace PokerClient
         void Awake()
         {
             Application.runInBackground = true;
-            Host = PlayerPrefs.GetString(HostKey, "192.168.0.43:8000");
+            // Поля «Сервер» в UI нет: эмулятор ходит на хост через 10.0.2.2, телефон — на LAN-адрес мака (менять здесь).
+            var emulator = SystemInfo.deviceModel.ToLowerInvariant().Contains("sdk");
+            Host = PlayerPrefs.GetString(HostKey, emulator ? "10.0.2.2:8000" : "192.168.1.217:8000");
             Nickname = PlayerPrefs.GetString(NickKey, "Игрок");
             Login = PlayerPrefs.GetString(LoginKey, "");
         }
@@ -156,7 +158,9 @@ namespace PokerClient
             {
                 if ((int)resp.StatusCode == 401) PlayerPrefs.DeleteKey(TokenKey);
                 var detail = json?["detail"];
-                throw new Exception(detail?.Type == JTokenType.String ? detail.ToString() : $"Ошибка сервера {(int)resp.StatusCode}");
+                var status = (int)resp.StatusCode;
+                throw new Exception(detail?.Type == JTokenType.String ? detail.ToString()
+                    : status == 422 ? "Логин 3–32 символа, пароль от 6 символов" : $"Ошибка сервера {status}");
             }
             Nickname = json?.Value<string>("nickname") ?? Nickname;
             return json?.Value<string>("token") ?? throw new Exception("сервер не вернул токен");

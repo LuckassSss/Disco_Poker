@@ -138,11 +138,14 @@ minSdk 26, iOS 15. Bundle id `com.discopoker.client` — заглушка, см�
   ```
   ADB=/Applications/Unity/Hub/Editor/6000.5.5f1/PlaybackEngines/AndroidPlayer/SDK/platform-tools/adb
   ~/Library/Android/sdk/emulator/emulator -avd Pixel_9a &
-  $ADB install -r Builds/android/DiscoPoker.apk && $ADB shell monkey -p com.discopoker.client 1
+  $ADB install -r Builds/android/DiscoPoker.apk && $ADB shell am start -n com.discopoker.client/com.unity3d.player.UnityPlayerGameActivity
   $ADB logcat -d | grep -E "←|→"      # лог сообщений клиента
   ```
-  Эмулятор ходит на сервер по LAN-адресу мака (не `localhost`). Хост по умолчанию зашит в `PokerSession.Awake`
-  (`192.168.0.43:8000`) и сохраняется в `PlayerPrefs`; на Android/в редакторе автоподключение — аргумент `-autojoin`.
+  Поля «Сервер» в UI нет: хост по умолчанию зашит в `PokerSession.Awake` — эмулятор (`deviceModel` содержит `sdk`)
+  идёт на `10.0.2.2:8000`, телефон — на LAN-адрес мака (`ipconfig getifaddr en0`, меняется с сетью — править в коде).
+  Значение сохраняется в `PlayerPrefs`: после смены адреса делать `$ADB shell pm clear com.discopoker.client`.
+  Запуск без случайных событий: `$ADB shell am start -n com.discopoker.client/com.unity3d.player.UnityPlayerGameActivity`.
+  На Android/в редакторе автоподключение — аргумент `-autojoin`.
 - iOS-симулятор (подпись не нужна, но это отдельная сборка Unity под Simulator SDK):
   ```
   $U -batchmode -nographics -projectPath "$PWD" -buildTarget iOS -executeMethod PokerClient.Editor.BuildTools.BuildIosSimulator -quit -logFile i.log
