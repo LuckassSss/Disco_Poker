@@ -304,6 +304,12 @@ namespace PokerClient
                                 var amount = wo.Value<long?>("amount") ?? 0;
                                 win.LastAction = $"+{amount}";
                                 win.Winner = true;
+                                // без вскрытия карты победителя приходят только здесь
+                                if (win.ShownCards == null && wo["cards"] is JArray { Count: > 0 } wonWith)
+                                {
+                                    win.ShownCards = new List<string>();
+                                    SetCards(win.ShownCards, wonWith);
+                                }
                                 names.Add($"{win.Nickname} +{amount}");
                             }
                     FinishNo++;

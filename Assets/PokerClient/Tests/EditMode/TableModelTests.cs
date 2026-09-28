@@ -131,6 +131,19 @@ namespace PokerClient.Tests
         }
 
         [Test]
+        public void HandFinished_WithoutShowdown_ShowsWinnerCards()
+        {
+            var m = new TableModel();
+            m.Seats[2].PlayerId = "p2";
+
+            m.Apply("hand_finished", JObject.Parse(@"{""went_to_showdown"": false, ""winners"": [{""seat_no"": 2, ""amount"": 15, ""cards"": [""7c"", ""2d""]}]}"));
+
+            Assert.IsTrue(m.Seats[2].Winner);
+            Assert.AreEqual(new[] { "7c", "2d" }, m.Seats[2].ShownCards);
+            Assert.IsNull(m.Seats[2].BestFive, "комбинации без вскрытия нет — подсветка только места");
+        }
+
+        [Test]
         public void ScreenPos_PutsMeAtBottomAndOthersClockwise()
         {
             Assert.AreEqual(0, TableModel.ScreenPos(4, 4));
