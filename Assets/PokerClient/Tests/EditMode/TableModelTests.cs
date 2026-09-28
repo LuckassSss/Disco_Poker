@@ -85,6 +85,29 @@ namespace PokerClient.Tests
         }
 
         [Test]
+        public void CardsDealt_KeepsServerOrderForAnimation()
+        {
+            var m = new TableModel();
+
+            m.Apply("cards_dealt", JObject.Parse(@"{""seats"": [3, 0, 7, 1], ""street"": ""preflop""}"));
+
+            Assert.AreEqual(new[] { 3, 0, 1 }, m.DealOrder, "порядок сервера, мест вне стола нет");
+            Assert.AreEqual(1, m.DealNo);
+            Assert.IsTrue(m.Seats[3].HasCards);
+        }
+
+        [Test]
+        public void HandStarted_ClearsFoldFromPreviousHand()
+        {
+            var m = new TableModel();
+            m.Seats[0].State = "folded";
+
+            m.Apply("hand_started", JObject.Parse(@"{""hand_id"": ""h2"", ""button_seat"": 3, ""players"": [{""seat_no"": 0, ""stack"": 900}]}"));
+
+            Assert.AreEqual("in_hand", m.Seats[0].State);
+        }
+
+        [Test]
         public void ScreenPos_PutsMeAtBottomAndOthersClockwise()
         {
             Assert.AreEqual(0, TableModel.ScreenPos(4, 4));

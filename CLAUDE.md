@@ -35,11 +35,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `Assets/Scenes/SampleScene.unity` — единственная сцена.
 - `game/` — сервер (FastAPI, Python 3.11+): `app/core/` — синхронное ядро без сети и asyncio (`game.py` движок раздачи,
   `pot.py`, `hand_eval.py`, `deck_provider.py`); `app/services/` — `registry.py` (реестр столов, `quick_join`),
+  `accounts.py` (баланс вне стола: бай-ин списывает, выход возвращает; кэш в памяти, итог в `app/db/`),
   `table.py` (стол-актор, по asyncio-задаче на стол), `hub.py` (player_id → живой сокет); `app/api/ws.py` эндпоинт `/ws`,
   `app/api/http.py` (`/auth/register|login|refresh|guest`, `/health`); `app/auth/` — `tokens.py` (JWT, `SessionStore` отзыва),
   `users.py` (логины, scrypt); `app/protocol/messages.py` схема сообщений. Без Postgres/Redis работает в памяти.
+  **В рантайме сервера нет генерации случайных чисел**: колоды заранее замешаны (`scripts/generate_decks.py` →
+  `data/decks.json`), `deck_provider.py` выдаёт их по глобальному счётчику (`INCR` в Redis, без него — локальный).
+  `random`/`secrets` для карт в ядро не добавлять.
   **Справочник протокола: `game/docs/PROTOCOL.md`, требования к клиенту: `game/docs/CLIENT_NETWORKING.md`,
-  устройство сервера: `game/docs/ARCHITECTURE.md`** — при любом вопросе «какое поле/какое сообщение» смотреть туда, не угадывать.
+  устройство сервера: `game/docs/ARCHITECTURE.md`, ТЗ: `game/docs/SPECIFICATION.md`** — при любом вопросе «какое поле/какое сообщение» смотреть туда, не угадывать.
 
 ## Правила
 - Два `asmdef`: `Scripts/PokerClient.asmdef` (весь код) и `Tests/EditMode/PokerClient.Tests.asmdef`.
@@ -60,7 +64,8 @@ EditMode-тесты модели в `Assets/PokerClient/Tests/EditMode/TableMode
 
 Сервер (из `game/`, в `.venv`, который создаёт `scripts/run_local.sh`): `make test` (pytest; `pyproject.toml`: `asyncio_mode=auto`,
 `pythonpath=.`; без pytest падает на `python tests/run_all.py`), один тест — `pytest tests/test_pot.py -k имя_теста`;
-`make lint` (ruff, line-length 100); `make run` (uvicorn с reload), `make bots BOTS=5 HANDS=20`.
+`make lint` (ruff, line-length 100); `make run` (uvicorn с reload), `make bots BOTS=4 HANDS=20`
+(не 5 — иначе клиенту не останется места); `make decks COUNT=10` — перегенерировать `data/decks.json`.
 Конфиг сервера — переменные окружения (`app/config.py`), `run_local.sh` копирует `.env.example` в `.env` (не в git).
 Для проверок клиента запускать с `GUEST_START_BALANCE=1000000`: по умолчанию 10 000 = бай-ину, докупиться не на что.
 

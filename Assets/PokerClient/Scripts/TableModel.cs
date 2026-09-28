@@ -68,6 +68,9 @@ namespace PokerClient
         public int MySeat = -1;
         public readonly List<string> HoleCards = new();
         public readonly List<BetOption> Options = new();
+        /// <summary>Порядок мест из <c>cards_dealt</c> — только для анимации; <see cref="DealNo"/> растёт с каждой раздачей.</summary>
+        public readonly List<int> DealOrder = new();
+        public int DealNo;
         public long Balance;
 
         /// <summary>Последнее событие словами — для строки статуса.</summary>
@@ -186,6 +189,7 @@ namespace PokerClient
                             {
                                 seat.Stack = po.Value<long?>("stack") ?? seat.Stack;
                                 seat.HasCards = true;
+                                seat.State = "in_hand"; // иначе «folded» с прошлой раздачи прячет карты
                             }
                     HandNo++;
                     Status = "Новая раздача";
@@ -206,9 +210,15 @@ namespace PokerClient
                     break;
 
                 case "cards_dealt":
+                    DealOrder.Clear();
                     if (d["seats"] is JArray dealt)
                         foreach (var n in dealt)
-                            if (SeatAt(n.Value<int>()) is { } s) s.HasCards = true;
+                            if (SeatAt(n.Value<int>()) is { } s)
+                            {
+                                s.HasCards = true;
+                                DealOrder.Add(s.SeatNo);
+                            }
+                    DealNo++;
                     break;
 
                 case "action_required":

@@ -97,7 +97,8 @@ namespace PokerClient
         TMP_Text _loadingLabel;
         TMP_InputField _login, _password;
         GameObject _connectPanel;
-        RectTransform _mapBackdrop, _map, _tables;
+        RectTransform _mapBackdrop, _map, _tables, _hudRow;
+        Canvas _canvas;
         readonly Dictionary<Sprite, Sprite> _blurred = new(); // размытые копии фонов для подложки
         TMP_Text _hudNick, _hudBalance;
         Button _prevLoc, _nextLoc;
@@ -113,6 +114,14 @@ namespace PokerClient
         readonly CardSlot[] _myCards = new CardSlot[2];
         TMP_Text _header, _pot, _status, _timer, _message, _sliderLabel;
         RectTransform _actions;
+        // анимация раздачи: рубашки летят из центра по местам в порядке cards_dealt, два круга
+        const float DealStep = 0.1f, DealFly = 0.35f;
+        static readonly Vector2 DealCardSize = new(96, 134);
+        readonly CardSlot[] _dealFly = new CardSlot[2 * TableModel.MaxSeats];
+        readonly List<int> _dealOrder = new();
+        RectTransform _dealFrom;
+        int _dealNo;
+        float _dealStart = -1f;
         GameObject _sliderRow;
         Slider _slider;
         string _sliderPrefix = "";
@@ -145,6 +154,9 @@ namespace PokerClient
                 Redraw();
             }
             UpdateTimer();
+            if (_lobby.activeSelf) UpdateHudRow();
+            if (_table.activeSelf) UpdateDeal();
+            else if (_dealStart >= 0) EndDeal();
             if (_loading.activeSelf && _ballFrames != null && _ballFrames.Length > 0)
                 _ball.sprite = _ballFrames[(int)(Time.unscaledTime * BallFps) % _ballFrames.Length];
         }
@@ -272,6 +284,64 @@ namespace PokerClient
             }
         }
 
+        // визуал поверх модели: место в модели уже с картами, их слот просто скрыт (scale 0), пока не долетит рубашка
+        void UpdateDeal()
+        {
+            var m = _s.Model;
+            if (m.DealNo != _dealNo)
+            {
+                _dealNo = m.DealNo;
+                _dealOrder.Clear();
+                _dealOrder.AddRange(m.DealOrder);
+                _dealStart = Time.unscaledTime;
+            }
+            if (_dealStart < 0) return;
+
+            var n = _dealOrder.Count;
+            var flying = false;
+            for (var k = 0; k < _dealFly.Length; k++)
+            {
+                var fly = _dealFly[k];
+                if (k >= 2 * n) { fly.Go.SetActive(false); continue; }
+                var seatNo = _dealOrder[k % n];
+                var slot = seatNo == m.MySeat ? _myCards[k / n] : _seatCards[TableModel.ScreenPos(seatNo, m.MySeat)][k / n];
+                var target = (RectTransform)slot.Go.transform;
+                var p = (Time.unscaledTime - _dealStart - k * DealStep) / DealFly;
+                target.localScale = p >= 1f ? Vector3.one : Vector3.zero;
+                fly.Go.SetActive(p > 0f && p < 1f);
+                if (p >= 1f) continue;
+                flying = true;
+                if (p <= 0f) continue;
+                var e = 1f - (1f - p) * (1f - p); // ease-out
+                var rt = (RectTransform)fly.Go.transform;
+                rt.position = Vector3.Lerp(_dealFrom.position, target.TransformPoint(target.rect.center), e);
+                rt.sizeDelta = Vector2.Lerp(DealCardSize, target.rect.size, e);
+                rt.localEulerAngles = new Vector3(0f, 0f, (1f - e) * 180f);
+            }
+            if (!flying) _dealStart = -1f;
+        }
+
+        // ушли со стола посреди анимации — вернуть слоты, иначе карты останутся невидимыми до следующей раздачи
+        void EndDeal()
+        {
+            _dealStart = -1f;
+            foreach (var c in _myCards) c.Go.transform.localScale = Vector3.one;
+            foreach (var seat in _seatCards)
+            foreach (var c in seat) c.Go.transform.localScale = Vector3.one;
+            foreach (var c in _dealFly) c.Go.SetActive(false);
+        }
+
+        const float HudInset = 40f; // от краёв картинки/safe area: зона жестов Android и скругления углов
+
+        // ряд иконок HUD = ширина карты, но симметрично внутри safe area (вырез камеры с одной стороны)
+        void UpdateHudRow()
+        {
+            var sa = Screen.safeArea;
+            var c = Screen.width / 2f;
+            var safe = 2f * Mathf.Min(c - sa.xMin, sa.xMax - c) / _canvas.scaleFactor;
+            _hudRow.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, Mathf.Min(_map.rect.width, safe) - 2f * HudInset);
+        }
+
         void UpdateTimer()
         {
             var m = _s.Model;
@@ -332,7 +402,8 @@ namespace PokerClient
 
             var canvasGo = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             canvasGo.transform.SetParent(transform, false);
-            canvasGo.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
+            _canvas = canvasGo.GetComponent<Canvas>();
+            _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             var scaler = canvasGo.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920, 1080);
@@ -382,25 +453,35 @@ namespace PokerClient
             hud.pivot = new Vector2(0.5f, 1f);
             hud.sizeDelta = new Vector2(0, 96);
             MakeImage(hud, _hudBar, Panel);
-            var left = new Vector2(0f, 0.5f);
-            var right = new Vector2(1f, 0.5f);
-            SpriteButton(hud, "Home", new Vector2(24, 0), new Vector2(76, 70), left, _homeButton, () => ShowLocation(0));
-            var currency = Box(hud, "Currency", new Vector2(116, 0), new Vector2(232, 90), left);
+            // иконки — в ряду по центру шириной с картинку карты (не шире safe area, см. UpdateHudRow), каждая стоит
+            // в доле ряда, снятой с центров иконок на макете W UI (1672 px): порядок и интервалы как в макете
+            _hudRow = Box(hud, "Row", Vector2.zero, new Vector2(1600, 96));
+            RectTransform At(Component c) { var rt = (RectTransform)c.transform; rt.pivot = new Vector2(0.5f, 0.5f); return rt; }
+            Vector2 X(float fx) => new(fx, 0.5f);
+            At(SpriteButton(_hudRow, "Home", Vector2.zero, new Vector2(76, 70), X(0.044f), _homeButton, () => ShowLocation(0)));
+            var currency = At(Box(_hudRow, "Currency", Vector2.zero, new Vector2(232, 90), X(0.181f)));
             MakeImage(currency, _currencyPanel, Panel);
-            _hudBalance = AddText(Box(currency, "Balance", new Vector2(30, 2), new Vector2(150, 60)), 30, TextAlignmentOptions.Right, Gold);
-            MakeImage(Box(hud, "Avatar", new Vector2(366, 0), new Vector2(80, 80), left), _avatar, Magenta);
-            _hudNick = AddText(Box(hud, "Nick", new Vector2(460, 0), new Vector2(200, 60), left), 30, TextAlignmentOptions.Left, Gold);
-            var level = Box(hud, "Level", new Vector2(676, 0), new Vector2(160, 70), left);
+            _hudBalance = AddText(Box(currency, "Balance", new Vector2(20, 2), new Vector2(136, 60)), 30, TextAlignmentOptions.Right, Gold);
+            _hudBalance.enableAutoSizing = true; // миллионы не влезают в 30pt
+            _hudBalance.fontSizeMin = 18;
+            _hudBalance.fontSizeMax = 30;
+            var avatar = At(Box(_hudRow, "Avatar", Vector2.zero, new Vector2(80, 80), X(0.286f)));
+            MakeImage(avatar, _avatar, Magenta);
+            // ника в макете нет, а между аватаром и уровнем места нет — подпись под аватаром, под панелью
+            _hudNick = AddText(Box(avatar, "Nick", new Vector2(0, -60), new Vector2(240, 36)), 24, TextAlignmentOptions.Center, Gold);
+            var level = At(Box(_hudRow, "Level", Vector2.zero, new Vector2(160, 70), X(0.372f)));
             MakeImage(level, _levelPanel, Panel).preserveAspect = true;
             AddText(Box(level, "Value", new Vector2(24, 2), new Vector2(90, 56)), 30, TextAlignmentOptions.Center, Gold).text = _playerLevel.ToString();
-            MakeImage(Box(hud, "Shop", Vector2.zero, new Vector2(200, 88)), _shopButton, Panel).preserveAspect = true;
-            MakeImage(Box(hud, "Star", new Vector2(-392, 0), new Vector2(76, 76), right), _starBadge, Panel).preserveAspect = true;
-            MakeImage(Box(hud, "Safe", new Vector2(-282, 0), new Vector2(90, 75), right), _safeButton, Panel).preserveAspect = true;
-            MakeImage(Box(hud, "Bag", new Vector2(-170, 0), new Vector2(92, 73), right), _bagButton, Panel).preserveAspect = true;
-            MakeImage(Box(hud, "Friends", new Vector2(-72, 0), new Vector2(78, 78), right), _friendsButton, Panel).preserveAspect = true;
-            SpriteButton(hud, "Menu", new Vector2(-24, 0), new Vector2(28, 78), right, _menuButton, () => _menu.SetActive(!_menu.activeSelf));
+            MakeImage(At(Box(_hudRow, "Shop", Vector2.zero, new Vector2(200, 88), X(0.532f))), _shopButton, Panel).preserveAspect = true;
+            MakeImage(At(Box(_hudRow, "Star", Vector2.zero, new Vector2(76, 76), X(0.647f))), _starBadge, Panel).preserveAspect = true;
+            MakeImage(At(Box(_hudRow, "Safe", Vector2.zero, new Vector2(90, 75), X(0.720f))), _safeButton, Panel).preserveAspect = true;
+            MakeImage(At(Box(_hudRow, "Bag", Vector2.zero, new Vector2(92, 73), X(0.806f))), _bagButton, Panel).preserveAspect = true;
+            MakeImage(At(Box(_hudRow, "Friends", Vector2.zero, new Vector2(78, 78), X(0.883f))), _friendsButton, Panel).preserveAspect = true;
+            At(SpriteButton(_hudRow, "Menu", Vector2.zero, new Vector2(28, 78), X(0.963f), _menuButton, () => _menu.SetActive(!_menu.activeSelf)));
 
-            var menu = Box(t, "Menu", new Vector2(-24, -104), new Vector2(220, 84), new Vector2(1f, 1f));
+            // выпадашка правым краем под «три точки»
+            var menu = Box(_hudRow, "MenuDrop", new Vector2(14, -8), new Vector2(220, 84), new Vector2(0.963f, 0f));
+            menu.pivot = new Vector2(1f, 1f);
             MakePanel(menu, Panel);
             MakeButton(menu, "Выйти", Vector2.zero, new Vector2(196, 64), () => { _menu.SetActive(false); _s.Disconnect(); }, Grey);
             _menu = menu.gameObject;
@@ -531,6 +612,14 @@ namespace PokerClient
             var mine = new Vector2(120, 168);
             _myCards[0] = MakeCard(t, new Vector2(-66, 205), mine, new Vector2(0.5f, 0f));
             _myCards[1] = MakeCard(t, new Vector2(66, 205), mine, new Vector2(0.5f, 0f));
+
+            _dealFrom = center;
+            for (var i = 0; i < _dealFly.Length; i++)
+            {
+                _dealFly[i] = MakeCard(t, Vector2.zero, DealCardSize);
+                SetCard(_dealFly[i], "back");
+                _dealFly[i].Go.SetActive(false);
+            }
 
             _sliderRow = Box(t, "SliderRow", new Vector2(0, 150), new Vector2(1000, 60), new Vector2(0.5f, 0f)).gameObject;
             _sliderLabel = AddText(Box(_sliderRow.transform, "Label", new Vector2(-380, 0), new Vector2(300, 60)), 32, TextAlignmentOptions.Right, Gold);
