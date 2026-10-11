@@ -18,10 +18,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
     Карты рисуются программно (белый скруглённый спрайт генерируется в `MakeRoundedSprite`), экран загрузки —
     фон `Loading/` + кадры шара из `Animations/Balls/`, стол — рендер `Locations/Location01/Tables/table_1` по высоте экрана,
     места игроков — якоря в долях картинки (`SeatUV`). Лобби: верхняя панель по макету `Locations/Location01/Backgrounds/W UI.png`
-    (спрайты из `HUD/`), карта локации целиком по высоте, поля по бокам — размытая копия фона (`MakeBlurred`, `Graphics.Blit`),
+    (спрайты из `HUD/`), карта локации — фон 20:9 `Backgrounds/location-*-mobile-20x9` (прежний с полями по бокам) на весь экран (`EnvelopeParent`),
     столы — прямоугольники в долях фона (`TableRects`). `MakeImage` ставит `raycastTarget=false`; кнопка из спрайта — `SpriteButton`.
 - `Assets/PokerClient/Editor/` — вне asmdef, компилируется в `Assembly-CSharp-Editor`, это нормально:
-  `BuildTools.cs` (`BuildAndroid`/`BuildIos`) и `DiscoPokerUiTexturePostprocessor.cs` (импорт PNG под `Art/UI/` как uGUI-спрайты).
+  `BuildTools.cs` (`BuildAndroid`/`BuildIos`/`BuildIosSimulator`, меню `Poker/…`) и `DiscoPokerUiTexturePostprocessor.cs` (импорт PNG под `Art/UI/` как uGUI-спрайты).
 - `Assets/PokerClient/Tests/EditMode/` — NUnit-тесты модели.
 - `Assets/PokerClient/Art/` — ассеты от пользователя. Не генерировать своё, брать отсюда:
   - `Cards/`, `Chips/`, `Table/`, `Fonts/`, `Audio/` — **пока пустые** (ожидаемые имена — в README там).
@@ -44,6 +44,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   `random`/`secrets` для карт в ядро не добавлять.
   **Справочник протокола: `game/docs/PROTOCOL.md`, требования к клиенту: `game/docs/CLIENT_NETWORKING.md`,
   устройство сервера: `game/docs/ARCHITECTURE.md`, ТЗ: `game/docs/SPECIFICATION.md`** — при любом вопросе «какое поле/какое сообщение» смотреть туда, не угадывать.
+  Источник правды — markdown; после правки пересобрать `game/docs/pdf/` командой `make docs-pdf`.
 
 ## Правила
 - Два `asmdef`: `Scripts/PokerClient.asmdef` (весь код) и `Tests/EditMode/PokerClient.Tests.asmdef`.
@@ -168,13 +169,12 @@ minSdk 26, iOS 15. Bundle id `com.discopoker.client` — заглушка, см�
   Из терминала тапать нельзя (только `simctl` и скриншоты `simctl io <udid> screenshot`), поэтому чтобы дойти до стола без тапов:
   `SIMCTL_CHILD_POKER_AUTOJOIN=1 xcrun simctl launch --console <udid> com.discopoker.client > log.txt` — клиент сам
   подключается к сохранённому хосту и делает `quick_join`; `--console` отдаёт Unity-лог (в `log show` он не попадает).
-  Аргументы командной строки на iOS в C# не приходят (`GetCommandLineArgs()` пустой), поэтому переменная окружения. `Plugins/iOS/AppUISimulatorStub.mm` — заглушка `NativeAppUI_*` под `TARGET_OS_SIMULATOR`:
+  Аргументы командной строки на iOS в C# не приходят (`GetCommandLineArgs()` пустой), поэтому переменная окружения. `Assets/PokerClient/Plugins/iOS/AppUISimulatorStub.mm` — заглушка `NativeAppUI_*` под `TARGET_OS_SIMULATOR`:
   библиотека AppUI (тянется через `com.unity.ai.assistant`) собрана только под устройство, а зовётся при старте плеера.
   `iOSSimulatorArchitecture: 1` (arm64) в ProjectSettings — иначе Unity кладёт x86_64-рантайм.
 - Сервер для проверки: `game/scripts/run_local.sh` (сам создаст `.venv`, Postgres/Redis не нужны — работает в памяти),
   боты `python3 game/scripts/bot_client.py --bots 4 --hands 50 --stake low` (4, а не 5 — чтобы осталось место клиенту).
   `curl localhost:8000/health` — жив ли; `http://localhost:8000/docs` — Swagger.
-  Телефон подключается по LAN-адресу мака, зашитому в `PokerSession.Awake` (поля «Сервер» в UI нет, см. выше).
 - Unity MCP: relay зарегистрирован в Claude Code как `unity-mcp` (user scope).
   Первое подключение подтверждать в Editor → Project Settings → AI → Unity MCP Server.
 

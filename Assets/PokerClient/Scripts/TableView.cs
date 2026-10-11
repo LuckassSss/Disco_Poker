@@ -50,12 +50,13 @@ namespace PokerClient
             public Sprite[] Names; // по столам
         }
 
-        // объекты-столы на карте: прямоугольник в долях фона (x, y от левого верхнего угла, w, h), снято с референсов W UI / NEW_VAR
+        // объекты-столы на карте: прямоугольник в долях фона 20:9 (x, y от левого верхнего угла, w, h), снято с референсов
+        // W UI / NEW_VAR и пересчитано под фоны location-*-mobile-20x9 (прежняя картинка по центру на всю высоту + поля по бокам)
         static readonly Rect[][] TableRects =
         {
-            new[] { new Rect(0.09f, 0.175f, 0.22f, 0.245f), new Rect(0.365f, 0.32f, 0.227f, 0.37f), new Rect(0.688f, 0.39f, 0.22f, 0.255f) },
-            new[] { new Rect(0.14f, 0.325f, 0.21f, 0.22f), new Rect(0.345f, 0.165f, 0.345f, 0.225f), new Rect(0.085f, 0.64f, 0.3f, 0.29f), new Rect(0.53f, 0.5f, 0.44f, 0.43f) },
-            new[] { new Rect(0.055f, 0.3f, 0.305f, 0.42f), new Rect(0.65f, 0.66f, 0.25f, 0.3f), new Rect(0.765f, 0.085f, 0.17f, 0.37f), new Rect(0.31f, 0.15f, 0.24f, 0.33f) },
+            new[] { new Rect(0.1722f, 0.175f, 0.1759f, 0.245f), new Rect(0.3921f, 0.32f, 0.1815f, 0.37f), new Rect(0.6503f, 0.39f, 0.1759f, 0.255f) },
+            new[] { new Rect(0.2566f, 0.325f, 0.142f, 0.22f), new Rect(0.3952f, 0.165f, 0.2332f, 0.225f), new Rect(0.2194f, 0.64f, 0.2028f, 0.29f), new Rect(0.5203f, 0.5f, 0.2975f, 0.43f) },
+            new[] { new Rect(0.1442f, 0.3f, 0.2439f, 0.42f), new Rect(0.6199f, 0.66f, 0.1999f, 0.3f), new Rect(0.7119f, 0.085f, 0.1359f, 0.37f), new Rect(0.3481f, 0.15f, 0.1919f, 0.33f) },
         };
         static readonly int[][] TableLevels = { new[] { 1, 2, 3 }, new[] { 1, 2, 3, 5 }, new[] { 1, 2, 3, 4 } };
         // ponytail: сервер локаций не знает — стол №i в локации идёт на уровень ставок по индексу
@@ -98,9 +99,8 @@ namespace PokerClient
         TMP_Text _loadingLabel;
         TMP_InputField _login, _password;
         GameObject _connectPanel;
-        RectTransform _mapBackdrop, _map, _tables, _hudRow;
+        RectTransform _map, _tables, _hudRow;
         Canvas _canvas;
-        readonly Dictionary<Sprite, Sprite> _blurred = new(); // размытые копии фонов для подложки
         TMP_Text _hudNick, _hudBalance;
         Button _prevLoc, _nextLoc;
         GameObject _menu; // выпадашка под «три точки»: пока только «Выйти»
@@ -525,13 +525,9 @@ namespace PokerClient
         {
             _lobby = Stretch(root, "Lobby").gameObject;
             var t = _lobby.transform;
-            // карта целиком по высоте экрана, чтобы все столы были видны; боковые поля на 20:9 закрывает
-            // сильно размытая копия той же картинки (резкая копия читалась как дубль краёв). Спрайты ставит ShowLocation.
-            _mapBackdrop = MakeCover(t, null, Night);
-            MakePanel(Stretch(t, "Dim"), new Color(0, 0, 0, 0.35f));
-            _map = Stretch(t, "Map");
-            MakeImage(_map, null, Night);
-            _map.gameObject.AddComponent<AspectRatioFitter>().aspectMode = AspectRatioFitter.AspectMode.FitInParent;
+            // фоны 20:9 с запасом по бокам: заполняют экран, на 16:9 обрезаются поля, столы стоят в середине. Спрайт ставит ShowLocation.
+            // ponytail: на 4:3 (iPad) обрежет и крайние столы — тогда FitInParent + подложка
+            _map = MakeCover(t, null, Night);
             _tables = Stretch(_map, "Tables");
 
             _prevLoc = MakeButton(t, "‹", new Vector2(24, 0), new Vector2(80, 160), () => ShowLocation(_location - 1), Panel, new Vector2(0f, 0.5f));
@@ -602,14 +598,10 @@ namespace PokerClient
             if (_locations == null || _locations.Length == 0) return;
             _location = Mathf.Clamp(idx, 0, Mathf.Min(_locations.Length, TableRects.Length) - 1);
             var art = _locations[_location];
-            if (art.Background != null && !_blurred.ContainsKey(art.Background)) _blurred[art.Background] = MakeBlurred(art.Background);
-            foreach (var (rt, sprite) in new[] { (_mapBackdrop, art.Background != null ? _blurred[art.Background] : null), (_map, art.Background) })
-            {
-                var img = rt.GetComponent<Image>();
-                img.sprite = sprite;
-                img.color = sprite != null ? Color.white : Night;
-                if (art.Background != null) rt.GetComponent<AspectRatioFitter>().aspectRatio = art.Background.rect.width / art.Background.rect.height;
-            }
+            var img = _map.GetComponent<Image>();
+            img.sprite = art.Background;
+            img.color = art.Background != null ? Color.white : Night;
+            if (art.Background != null) _map.GetComponent<AspectRatioFitter>().aspectRatio = art.Background.rect.width / art.Background.rect.height;
 
             foreach (Transform c in _tables) Destroy(c.gameObject);
             _tableButtons.Clear();
@@ -843,29 +835,6 @@ namespace PokerClient
         }
 
         /// <summary>Белый квадрат со скруглёнными углами под 9-slice: один спрайт на все панели, кнопки и карты.</summary>
-        /// <summary>Сильно размытая копия спрайта: уменьшаем вдвое на GPU до ~50 px (текстуры нечитаемые и без мипмапов),
-        /// обратно растягивает билинейный фильтр. Для подложки под карту, где детали только мешают.</summary>
-        static Sprite MakeBlurred(Sprite src)
-        {
-            var cur = RenderTexture.GetTemporary(src.texture.width, src.texture.height, 0);
-            Graphics.Blit(src.texture, cur);
-            while (cur.width > 64)
-            {
-                var next = RenderTexture.GetTemporary(cur.width / 2, cur.height / 2, 0);
-                Graphics.Blit(cur, next);
-                RenderTexture.ReleaseTemporary(cur);
-                cur = next;
-            }
-            var prev = RenderTexture.active;
-            RenderTexture.active = cur;
-            var tex = new Texture2D(cur.width, cur.height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
-            tex.ReadPixels(new Rect(0, 0, cur.width, cur.height), 0, 0);
-            tex.Apply();
-            RenderTexture.active = prev;
-            RenderTexture.ReleaseTemporary(cur);
-            return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
-        }
-
         /// <summary><paramref name="ring"/> &gt; 0 — только кромка такой толщины (рамка), середина прозрачная.</summary>
         static Sprite MakeRoundedSprite(int radius, int ring = 0)
         {
