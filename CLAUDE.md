@@ -164,6 +164,21 @@ minSdk 26, iOS 15. Bundle id `com.discopoker.client` — заглушка, см�
 - Unity MCP: relay зарегистрирован в Claude Code как `unity-mcp` (user scope).
   Первое подключение подтверждать в Editor → Project Settings → AI → Unity MCP Server.
 
+## CI/CD
+
+`.github/workflows/client.yml` на self-hosted раннере GitHub Actions — этом маке (`~/actions-runner`, не внутри проекта;
+у раннера свой чекаут и свой `Library`, с открытым редактором не конфликтует). Пуш в `main` → EditMode-тесты + APK
+(артефакт на сутки); тег `vX.Y.Z` → тесты + AAB → Google Play (internal) и RuStore, iOS → TestFlight.
+Версия — из тега, номер сборки — `github.run_number` (аргументы `BuildTools`: `-buildVersion`, `-buildNumber`, `-aab`;
+ключ Android — переменные `ANDROID_KEYSTORE_PATH/_PASS`, `ANDROID_KEYALIAS_NAME/_PASS`). Пакет CI берёт из `ProjectSettings`.
+Шаг площадки пропускается, пока в Settings → Secrets нет её ключей:
+- подпись Android: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASS`, `ANDROID_KEYALIAS_NAME`, `ANDROID_KEYALIAS_PASS`
+  (без неё AAB с отладочной подписью — в сторы не уходит);
+- Google Play: `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`; RuStore: `RUSTORE_KEY_ID`, `RUSTORE_PRIVATE_KEY` (`ci/rustore_upload.sh`);
+- App Store: `APPLE_TEAM_ID`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8` (подпись автоматическая через ключ App Store Connect).
+Первую версию в каждом сторе выкладывать руками (API Play и RuStore без неё не работают) — AAB брать из артефакта
+тегового запуска, чтобы не разошёлся `versionCode`.
+
 ## Прогресс
 
 Где остановились, что проверено, съеденные грабли и бэклог — в `PROGRESS.md`. Читать первым в новой сессии,

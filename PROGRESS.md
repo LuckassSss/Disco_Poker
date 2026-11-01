@@ -5,7 +5,23 @@
 **С 2026-11-01 сервер — отдельный репозиторий** (локально `../back/`, свой `PROGRESS.md`, история `game/` перенесена туда).
 Записи ниже до этой даты — совместный журнал: пути `game/…` теперь `../back/…`.
 
-## Состояние на 2026-11-01
+## Состояние на 2026-11-01 (для продолжения в новой сессии)
+
+**Последний коммит `b64b62c` (запушен).** Поверх него **не закоммичено** — CI/CD (ждёт решения пользователя о коммите):
+- `.github/workflows/client.yml` — self-hosted раннер на маке: пуш в `main` → EditMode-тесты + APK-артефакт;
+  тег `vX.Y.Z` → AAB → Google Play (internal, `r0adkll/upload-google-play@v1`) и RuStore (`ci/rustore_upload.sh`),
+  iOS → TestFlight (`xcodebuild archive` + `-exportArchive` с `destination=upload`, ключ App Store Connect).
+  Шаг площадки пропускается без её секретов (список — CLAUDE.md, раздел «CI/CD»).
+- `BuildTools.cs`: `-buildVersion`, `-buildNumber`, `-aab`, ключ Android из `ANDROID_KEYSTORE_PATH/_PASS`,
+  `ANDROID_KEYALIAS_NAME/_PASS`. Проверено локальной сборкой AAB (подпись тестовым ключом, версия/номер применились).
+- Подпись запроса RuStore (SHA512withRSA от `keyId+timestamp`, ключ PKCS#8 → PEM) проверена на тестовом ключе —
+  и Homebrew OpenSSL, и системным LibreSSL. Сами загрузки в Play/RuStore/TestFlight **не запускались ни разу**.
+
+**Следующие шаги (за пользователем):** решить окончательный bundle id (сейчас заглушка `com.discopoker.client`,
+после первой загрузки не сменить); зарегистрировать раннер (`~/actions-runner`, `./svc.sh install && start`);
+создать upload-keystore; завести аккаунты Google Play / RuStore / Apple Developer (пока ни одного) и секреты в GitHub;
+первую версию в каждом сторе выложить руками из артефакта тегового запуска. Дальше по бэклогу клиента: `sit_in`/`rebuy`,
+TLS (`wss://`, Caddy на сервере) — тогда поменять схему в `PokerSession` (`http://`/`ws://` сейчас зашиты).
 
 - Клиент ходит на боевой сервер `discopok.fun:8000` (все устройства, включая эмулятор). Проверено на Pixel_9a:
   `-autojoin` → `welcome` → `joined_table`, полная раздача с двумя ботами (`bot_client.py --host discopok.fun:8000`).
