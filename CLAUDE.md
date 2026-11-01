@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Poker Client (Unity)
 
 Клиент покерной игры (Texas Hold'em). Unity **6000.5.5f1**, URP 2D, uGUI, Input System, TextMeshPro.
-Сервер (Python/FastAPI, NLHE, 5 мест) лежит в этом же репо в `game/` — см. ниже.
+Сервер (Python/FastAPI, NLHE, 5 мест) — отдельный репозиторий, локально лежит рядом: `../back/` (свой `CLAUDE.md`).
 
 ## Структура
 - `Assets/PokerClient/Scripts/` — весь C# код (4 файла, по одному на слой архитектуры):
@@ -33,18 +33,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
     из Figma (`figma.com/design/hULeSpuZvTsyODA1jnZWJd`, мудборд без фреймов; локация 04 и остальное — там же).
 - `Assets/PokerClient/Prefabs/` — пусто; префабы — когда будут спрайты карт.
 - `Assets/Scenes/SampleScene.unity` — единственная сцена.
-- `game/` — сервер (FastAPI, Python 3.11+): `app/core/` — синхронное ядро без сети и asyncio (`game.py` движок раздачи,
-  `pot.py`, `hand_eval.py`, `deck_provider.py`); `app/services/` — `registry.py` (реестр столов, `quick_join`),
-  `accounts.py` (баланс вне стола: бай-ин списывает, выход возвращает; кэш в памяти, итог в `app/db/`),
-  `table.py` (стол-актор, по asyncio-задаче на стол), `hub.py` (player_id → живой сокет); `app/api/ws.py` эндпоинт `/ws`,
-  `app/api/http.py` (`/auth/register|login|refresh|guest`, `/health`); `app/auth/` — `tokens.py` (JWT, `SessionStore` отзыва),
-  `users.py` (логины, scrypt); `app/protocol/messages.py` схема сообщений. Без Postgres/Redis работает в памяти.
-  **В рантайме сервера нет генерации случайных чисел**: колоды заранее замешаны (`scripts/generate_decks.py` →
-  `data/decks.json`), `deck_provider.py` выдаёт их по глобальному счётчику (`INCR` в Redis, без него — локальный).
-  `random`/`secrets` для карт в ядро не добавлять.
-  **Справочник протокола: `game/docs/PROTOCOL.md`, требования к клиенту: `game/docs/CLIENT_NETWORKING.md`,
-  устройство сервера: `game/docs/ARCHITECTURE.md`, ТЗ: `game/docs/SPECIFICATION.md`** — при любом вопросе «какое поле/какое сообщение» смотреть туда, не угадывать.
-  Источник правды — markdown; после правки пересобрать `game/docs/pdf/` командой `make docs-pdf`.
+
+**Справочник протокола: `../back/docs/PROTOCOL.md`, требования к клиенту: `../back/docs/CLIENT_NETWORKING.md`,
+устройство сервера: `../back/docs/ARCHITECTURE.md`, ТЗ: `../back/docs/SPECIFICATION.md`** — при любом вопросе
+«какое поле/какое сообщение» смотреть туда, не угадывать. Правка протокола — коммиты в оба репозитория.
 
 ## Правила
 - Два `asmdef`: `Scripts/PokerClient.asmdef` (весь код) и `Tests/EditMode/PokerClient.Tests.asmdef`.
@@ -63,12 +55,8 @@ EditMode-тесты модели в `Assets/PokerClient/Tests/EditMode/TableMode
 или батчем (команды ниже). Один тест: добавить `-testFilter PokerClient.Tests.TableModelTests.Street_ReplacesBoardEntirely`.
 Результат — в `t.xml` (`<test-case ... result="Passed">`), лог компиляции — `t.log`.
 
-Сервер (из `game/`, в `.venv`, который создаёт `scripts/run_local.sh`): `make test` (pytest; `pyproject.toml`: `asyncio_mode=auto`,
-`pythonpath=.`; без pytest падает на `python tests/run_all.py`), один тест — `pytest tests/test_pot.py -k имя_теста`;
-`make lint` (ruff, line-length 100); `make run` (uvicorn с reload), `make bots BOTS=4 HANDS=20`
-(не 5 — иначе клиенту не останется места); `make decks COUNT=10` — перегенерировать `data/decks.json`.
-Конфиг сервера — переменные окружения (`app/config.py`), `run_local.sh` копирует `.env.example` в `.env` (не в git).
-Для проверок клиента запускать с `GUEST_START_BALANCE=1000000`: по умолчанию 10 000 = бай-ину, докупиться не на что.
+Сервер для проверок клиента — см. «Платформы и инструменты» ниже; его тесты и команды — в `../back/CLAUDE.md`.
+Запускать с `GUEST_START_BALANCE=1000000`: по умолчанию 10 000 = бай-ину, докупиться не на что.
 
 ## Архитектура клиента
 
@@ -103,11 +91,9 @@ Joining → AtTable`, плюс `Reconnecting`. В `AtTable` переходим �
 
 `POST /auth/register|login {"login","password"[,"nickname"]}` → `token`, `player_id`, `balance`.
 Токен аккаунта живёт 3 дня; при каждом запуске клиент шлёт его в `POST /auth/refresh` и получает
-новый (`PokerSession.Resume`), `401` → форма входа. Каждая выдача отзывает прежние токены игрока: `jti` в токене,
-текущий — в `SessionStore` (`tokens.py`, память поверх `players.session_id`); проверка — `verify_token`, не `decode_token`. `POST /auth/guest {"nickname"}` (30 суток,
-продление старым токеном) остался для ботов и `POKER_AUTOJOIN`. `player_id` слать нельзя, он публичен.
-Пароли — `hashlib.scrypt` в `app/auth/users.py`; логины — колонки `players.login/password_hash`
-(`create_all` не добавит их в уже существующую таблицу — пересоздать).
+новый (`PokerSession.Resume`), `401` → форма входа. Каждая выдача отзывает прежние токены игрока
+(старый токен → 401 / `4401`). `POST /auth/guest {"nickname"}` (30 суток, продление старым токеном) остался для ботов
+и `POKER_AUTOJOIN`. `player_id` слать нельзя, он публичен.
 
 Дальше `ws://host:8000/ws?token=<token>` (или коннект без параметра и первым
 сообщением `auth`). Сессия установлена только после `welcome`; при реконнекте
@@ -172,8 +158,8 @@ minSdk 26, iOS 15. Bundle id `com.discopoker.client` — заглушка, см�
   Аргументы командной строки на iOS в C# не приходят (`GetCommandLineArgs()` пустой), поэтому переменная окружения. `Assets/PokerClient/Plugins/iOS/AppUISimulatorStub.mm` — заглушка `NativeAppUI_*` под `TARGET_OS_SIMULATOR`:
   библиотека AppUI (тянется через `com.unity.ai.assistant`) собрана только под устройство, а зовётся при старте плеера.
   `iOSSimulatorArchitecture: 1` (arm64) в ProjectSettings — иначе Unity кладёт x86_64-рантайм.
-- Сервер для проверки: `game/scripts/run_local.sh` (сам создаст `.venv`, Postgres/Redis не нужны — работает в памяти),
-  боты `python3 game/scripts/bot_client.py --bots 4 --hands 50 --stake low` (4, а не 5 — чтобы осталось место клиенту).
+- Сервер для проверки: `../back/scripts/run_local.sh` (сам создаст `.venv`, Postgres/Redis не нужны — работает в памяти),
+  боты `python3 ../back/scripts/bot_client.py --bots 4 --hands 50 --stake low` (4, а не 5 — чтобы осталось место клиенту).
   `curl localhost:8000/health` — жив ли; `http://localhost:8000/docs` — Swagger.
 - Unity MCP: relay зарегистрирован в Claude Code как `unity-mcp` (user scope).
   Первое подключение подтверждать в Editor → Project Settings → AI → Unity MCP Server.
