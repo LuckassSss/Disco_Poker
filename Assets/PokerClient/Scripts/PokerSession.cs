@@ -17,7 +17,6 @@ namespace PokerClient
     public sealed class PokerSession : MonoBehaviour
     {
         const string TokenKey = "poker.token";
-        const string HostKey = "poker.host";
         const string NickKey = "poker.nick";
         const string LoginKey = "poker.login";
         const float PingInterval = 12f;
@@ -45,9 +44,8 @@ namespace PokerClient
         void Awake()
         {
             Application.runInBackground = true;
-            // Поля «Сервер» в UI нет: эмулятор ходит на хост через 10.0.2.2, телефон — на LAN-адрес мака (менять здесь).
-            var emulator = SystemInfo.deviceModel.ToLowerInvariant().Contains("sdk");
-            Host = PlayerPrefs.GetString(HostKey, emulator ? "10.0.2.2:8000" : "192.168.1.217:8000");
+            // Поля «Сервер» в UI нет: все, включая эмулятор, ходят на боевой сервер. Локальный сервер мака с эмулятора — "10.0.2.2:8000".
+            Host = "discopok.fun:8000";
             Nickname = PlayerPrefs.GetString(NickKey, "Игрок");
             Login = PlayerPrefs.GetString(LoginKey, "");
         }

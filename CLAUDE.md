@@ -136,9 +136,9 @@ minSdk 26, iOS 15. Bundle id `com.discopoker.client` — заглушка, см�
   $ADB install -r Builds/android/DiscoPoker.apk && $ADB shell am start -n com.discopoker.client/com.unity3d.player.UnityPlayerGameActivity
   $ADB logcat -d | grep -E "←|→"      # лог сообщений клиента
   ```
-  Поля «Сервер» в UI нет: хост по умолчанию зашит в `PokerSession.Awake` — эмулятор (`deviceModel` содержит `sdk`)
-  идёт на `10.0.2.2:8000`, телефон — на LAN-адрес мака (`ipconfig getifaddr en0`, меняется с сетью — править в коде).
-  Значение сохраняется в `PlayerPrefs`: после смены адреса делать `$ADB shell pm clear com.discopoker.client`.
+  Поля «Сервер» в UI нет: хост зашит в `PokerSession.Awake` — все, включая эмулятор, идут на боевой `discopok.fun:8000`
+  (195.209.213.51, `scripts/server_up.sh` из `../back`). Пока без TLS: `http://` и `ws://`. Проверить правку сервера
+  локально — временно поставить там `10.0.2.2:8000` (так эмулятор видит мак).
   Запуск без случайных событий: `$ADB shell am start -n com.discopoker.client/com.unity3d.player.UnityPlayerGameActivity`.
   На Android/в редакторе автоподключение — аргумент `-autojoin`.
 - iOS-симулятор (подпись не нужна, но это отдельная сборка Unity под Simulator SDK):
